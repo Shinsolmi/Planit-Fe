@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 class ProfileUserScreen extends StatelessWidget {
-  final String userName = "이름"; // 실제 앱에서는 로그인 정보에서 가져오기
+  final String userName;
+
+  const ProfileUserScreen({Key? key, required this.userName}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: Text('마이페이지')),
       backgroundColor: Colors.blue[300],
       body: Center(
         child: Container(
@@ -15,7 +18,10 @@ class ProfileUserScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('PLANIT', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
+              Text(
+                'PLANIT',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue),
+              ),
               SizedBox(height: 32),
               Center(
                 child: Column(
@@ -46,9 +52,9 @@ class ProfileUserScreen extends StatelessWidget {
     );
   }
 
-   Widget bottomNav() {
+  Widget bottomNav() {
     return BottomNavigationBar(
-      backgroundColor: Colors.blue, // 배경 색상
+      backgroundColor: Colors.blue,
       type: BottomNavigationBarType.fixed,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: ''),
