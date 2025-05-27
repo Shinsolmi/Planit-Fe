@@ -1,6 +1,0 @@
-git init
-git remote add origin https://github.com/PLANIT4/Planit_fe.git
-git add .
-git commit -m "로그인, 회원가입 DB 연동"
-git branch -M main
-git push -u origin main
