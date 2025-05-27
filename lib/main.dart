@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/profile_guest_screen.dart';
+import 'screens/signup_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,7 +14,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'PLANIT',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: ProfileGuestScreen(),
+      initialRoute: '/ProfileGuestScreen',
+      routes: {
+        '/signup': (context) => SignupScreen(), 
+        '/ProfileGuestScreen': (context) => ProfileGuestScreen(),
+      },
     );
   }
 }
