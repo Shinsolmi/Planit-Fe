@@ -7,6 +7,7 @@ import 'question_screen.dart'; // 홈
 import 'transportation_screen.dart'; // 교통
 import 'profile_guest_screen.dart'; // 마이페이지
 
+
 class SignupScreen extends StatefulWidget {
   @override
   _SignupScreenState createState() => _SignupScreenState();
@@ -18,7 +19,9 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController confirmPasswordController = TextEditingController();
   final TextEditingController userNameController = TextEditingController();
 
+
   int _selectedIndex = 3; // 기본: 마이페이지 선택됨
+
 
   Future<void> signupUser() async {
     final email = emailController.text.trim();
@@ -38,6 +41,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
     try {
       final url = Uri.parse('https://eighty-years-own.loca.lt/users/register');
+
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -55,6 +59,7 @@ class _SignupScreenState extends State<SignupScreen> {
           context,
           MaterialPageRoute(builder: (context) => ProfileGuestScreen()),
         );
+        Navigator.pushReplacementNamed(context, '/ProfileGuestScreen');
       } else {
         showError('회원가입 실패: ${response.body}');
       }
@@ -91,7 +96,6 @@ class _SignupScreenState extends State<SignupScreen> {
     } else if (index == 3) {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ProfileGuestScreen()));
     }
-    // index == 2는 현재 기능 없음
   }
 
   @override
@@ -110,6 +114,10 @@ class _SignupScreenState extends State<SignupScreen> {
         backgroundColor: Colors.blue,
         centerTitle: true,
       ),
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
       backgroundColor: Colors.blue[300],
       body: Center(
         child: Container(
@@ -119,6 +127,8 @@ class _SignupScreenState extends State<SignupScreen> {
           child: SingleChildScrollView(
             child: Column(
               children: [
+                Text("PLANIT", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
+                SizedBox(height: 32),
                 Text("회원가입", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
                 SizedBox(height: 24),
                 TextField(
@@ -179,6 +189,20 @@ class _SignupScreenState extends State<SignupScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
         ],
       ),
+      bottomNavigationBar: bottomNav(),
+    );
+  }
+
+  Widget bottomNav() {
+    return BottomNavigationBar(
+      backgroundColor: Colors.blue,
+      type: BottomNavigationBarType.fixed,
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: ''),
+        BottomNavigationBarItem(icon: Icon(Icons.train), label: ''),
+        BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: ''),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
+      ],
     );
   }
 }
