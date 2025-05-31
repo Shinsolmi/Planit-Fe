@@ -11,7 +11,7 @@ class ProfileGuestScreen extends StatefulWidget {
 }
 
 class _ProfileGuestScreenState extends State<ProfileGuestScreen> {
-  int _selectedIndex = 3;
+  int _selectedIndex = -1; // ✅ 아무것도 선택되지 않도록 설정
 
   void _onItemTapped(int index) {
     if (index == 0) {

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'transportation_screen.dart';
 import 'question_screen.dart';
-import 'profile_guest_screen.dart'; // ✅ 필요한 경우에만 유지
+import 'profile_guest_screen.dart';
 
 class MypageScreen extends StatefulWidget {
   @override
