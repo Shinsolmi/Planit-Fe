@@ -9,6 +9,7 @@ import 'question2_screen.dart';
 
 import '../widgets/custom_app_bar.dart'; 
 import '../widgets/bottom_nav_bar.dart';
+import '../env.dart';
 
 class QuestionPage extends StatefulWidget {
   @override
@@ -26,7 +27,7 @@ class _QuestionPageState extends State<QuestionPage> {
 
   // 🔵 서버로 도시 전송
   Future<void> sendSelectedCityToServer(String city) async {
-    final url = Uri.parse('https://your-api-url.com/save-city'); // ⚠️ URL 수정 필요
+    final url = Uri.parse('$baseUrl/save-city'); // ⚠️ URL 수정 필요
     try {
       final response = await http.post(
         url,

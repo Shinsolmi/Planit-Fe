@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'mypage_screen.dart';
 import 'transportation_screen.dart';
 import 'profile_guest_screen.dart';
+import '../env.dart';
 
 class CompletionScreen extends StatefulWidget {
   @override
@@ -23,7 +24,7 @@ class _CompletionScreenState extends State<CompletionScreen> {
   }
 
   Future<void> fetchItinerary() async {
-    final url = Uri.parse('https://tall-feet-shout.loca.lt'); // 여기 수정하셈 !!!!!!!!!!!!!!!!!
+    final url = Uri.parse('$baseUrl'); // 여기 수정하셈 !!!!!!!!!!!!!!!!!
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {

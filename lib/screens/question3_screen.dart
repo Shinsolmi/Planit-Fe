@@ -9,6 +9,7 @@ import 'question4_screen.dart';
 
 import '../widgets/custom_app_bar.dart'; // ✅ 공통 AppBar
 import '../widgets/bottom_nav_bar.dart'; // ✅ 공통 BottomNavBar
+import '../env.dart';
 
 class Question3Screen extends StatefulWidget {
   @override
@@ -24,7 +25,7 @@ class _Question3ScreenState extends State<Question3Screen> {
   ];
 
   Future<void> sendCompanionToServer(String companion) async {
-    final url = Uri.parse('https://your-api-url.com/save-companion'); // ⚠️ 서버 URL 교체 필요
+    final url = Uri.parse('$baseUrl/save-companion'); // ⚠️ 서버 URL 교체 필요
     try {
       final response = await http.post(
         url,

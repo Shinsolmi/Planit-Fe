@@ -9,6 +9,7 @@ import 'question3_screen.dart';
 
 import '../widgets/custom_app_bar.dart'; // ✅ 공통 AppBar
 import '../widgets/bottom_nav_bar.dart'; // ✅ 공통 BottomNavBar
+import '../env.dart';
 
 class Question2Screen extends StatefulWidget {
   @override
@@ -28,7 +29,7 @@ class _Question2ScreenState extends State<Question2Screen> {
   ];
 
   Future<void> sendDurationToServer(String duration) async {
-    final url = Uri.parse('https://your-api-url.com/save-duration'); // ⚠️ 서버 URL 교체 필요
+    final url = Uri.parse('$baseUrl/save-duration'); // ⚠️ 서버 URL 교체 필요
     try {
       final response = await http.post(
         url,

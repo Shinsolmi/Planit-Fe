@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'signup_screen.dart';
 import 'profile_user_screen.dart';
 import 'profile_guest_screen.dart';
+import '../env.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    final url = Uri.parse('https://eighty-years-own.loca.lt/users/login');
+    final url = Uri.parse('$baseUrl/users/login');
     try {
       final response = await http.post(
         url,

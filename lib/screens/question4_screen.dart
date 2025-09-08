@@ -6,6 +6,7 @@ import 'mypage_screen.dart';
 import 'transportation_screen.dart';
 import 'profile_guest_screen.dart';
 import 'question5_screen.dart';
+import '../env.dart';
 
 class Question4Screen extends StatefulWidget {
   @override
@@ -19,7 +20,7 @@ class _Question4ScreenState extends State<Question4Screen> {
   final List<String> themes = ['자연', '쇼핑', '먹방', '역사', '휴식'];
 
   Future<void> sendThemeToServer(String theme) async {
-    final url = Uri.parse('https://your-api-url.com/save-theme'); // 수정 필요
+    final url = Uri.parse('$baseUrl/save-theme'); // 수정 필요
     try {
       final response = await http.post(
         url,

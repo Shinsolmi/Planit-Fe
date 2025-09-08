@@ -6,6 +6,7 @@ import 'mypage_screen.dart';
 import 'transportation_screen.dart';
 import 'profile_guest_screen.dart';
 import 'completion_screen.dart';
+import '../env.dart';
 
 class Question5Screen extends StatefulWidget {
   @override
@@ -19,7 +20,7 @@ class _Question5ScreenState extends State<Question5Screen> {
   final List<String> schedules = ['빼곡한일정', '여유로운일정'];
 
   Future<void> sendSchedulePreferenceToServer(String scheduleType) async {
-    final url = Uri.parse('https://your-api-url.com/save-schedule'); // 수정 필요
+    final url = Uri.parse('$baseUrl/save-schedule'); // 수정 필요
     try {
       final response = await http.post(
         url,

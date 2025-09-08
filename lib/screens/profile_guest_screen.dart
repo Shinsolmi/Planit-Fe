@@ -64,6 +64,7 @@ class _ProfileGuestScreenState extends State<ProfileGuestScreen> {
                 SizedBox(height: 24),
 
                 /// ✅ 추천 카드
+                /// 
                 Text('이런 곳 어떠세요?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 SizedBox(height: 20),
                 SizedBox(
@@ -72,14 +73,14 @@ class _ProfileGuestScreenState extends State<ProfileGuestScreen> {
                     scrollDirection: Axis.horizontal,
                     children: [
                       buildRecommendationCard(
-                        imageUrl: 'https://via.placeholder.com/150',
+                        imageUrl: 'https://picsum.photos/150',
                         title: '도쿄의 독특한 전문 박물관 BEST 3',
                         subtitle: '도쿄',
                         profileLabel: '곰돌이',
                       ),
                       SizedBox(width: 12),
                       buildRecommendationCard(
-                        imageUrl: 'https://via.placeholder.com/150',
+                        imageUrl: 'https://picsum.photos/150',
                         title: "'천안문문' 리뷰",
                         subtitle: '베이징',
                         profileLabel: '여행자',

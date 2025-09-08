@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-// 본인이 만든 화면 import 추가
-import 'question_screen.dart'; // 홈
-import 'transportation_screen.dart'; // 교통
-import 'profile_guest_screen.dart'; // 마이페이지
-
+import 'question_screen.dart';
+import 'transportation_screen.dart';
+import 'profile_guest_screen.dart';
+import '../env.dart';
 
 class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
+
   @override
-  _SignupScreenState createState() => _SignupScreenState();
+  State<SignupScreen> createState() => _SignupScreenState();
 }
 
 class _SignupScreenState extends State<SignupScreen> {
@@ -19,9 +20,16 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController confirmPasswordController = TextEditingController();
   final TextEditingController userNameController = TextEditingController();
 
+  int _selectedIndex = 3; // 기본: 마이페이지
 
-  int _selectedIndex = 3; // 기본: 마이페이지 선택됨
-
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    userNameController.dispose();
+    super.dispose();
+  }
 
   Future<void> signupUser() async {
     final email = emailController.text.trim();
@@ -33,14 +41,14 @@ class _SignupScreenState extends State<SignupScreen> {
       showError('모든 항목을 입력해주세요.');
       return;
     }
-
     if (password != confirmPassword) {
       showError('비밀번호가 일치하지 않습니다.');
       return;
     }
 
     try {
-      final url = Uri.parse('https://eighty-years-own.loca.lt/users/register');
+      // TODO: 베이스 URL을 환경에 맞게 변경 (에뮬: http://10.0.2.2:3000)
+      final url = Uri.parse('$baseUrl/users/register');
 
       final response = await http.post(
         url,
@@ -53,13 +61,12 @@ class _SignupScreenState extends State<SignupScreen> {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = jsonDecode(response.body);
-        print('회원가입 성공: $responseData');
+        // 성공 시 마이페이지로 이동 (한 번만 이동)
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => ProfileGuestScreen()),
+          MaterialPageRoute(builder: (_) => ProfileGuestScreen()),
         );
-        Navigator.pushReplacementNamed(context, '/ProfileGuestScreen');
       } else {
         showError('회원가입 실패: ${response.body}');
       }
@@ -72,29 +79,29 @@ class _SignupScreenState extends State<SignupScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('오류'),
+        title: const Text('오류'),
         content: Text(message),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('확인'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('확인')),
         ],
       ),
     );
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    if (index == _selectedIndex) return;
+    setState(() => _selectedIndex = index);
 
-    if (index == 0) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => QuestionPage()));
-    } else if (index == 1) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => TransportSelectionPage()));
-    } else if (index == 3) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ProfileGuestScreen()));
+    switch (index) {
+      case 0:
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => QuestionPage()));
+        break;
+      case 1:
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => TransportSelectionPage()));
+        break;
+      case 3:
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ProfileGuestScreen()));
+        break;
     }
   }
 
@@ -103,100 +110,78 @@ class _SignupScreenState extends State<SignupScreen> {
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
-          onTap: () {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => QuestionPage()));
-          },
-          child: Text(
-            'PLANIT',
-            style: TextStyle(color: Colors.white),
-          ),
+          onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => QuestionPage())),
+          child: const Text('PLANIT', style: TextStyle(color: Colors.white)),
         ),
         backgroundColor: Colors.blue,
         centerTitle: true,
       ),
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
       backgroundColor: Colors.blue[300],
       body: Center(
         child: Container(
-          width: double.infinity,
+          constraints: const BoxConstraints(maxWidth: 480),
           padding: const EdgeInsets.all(16),
           color: Colors.white,
           child: SingleChildScrollView(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text("PLANIT", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
-                SizedBox(height: 32),
-                Text("회원가입", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
-                SizedBox(height: 24),
+                const SizedBox(height: 16),
+                const Text("회원가입", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
+                const SizedBox(height: 24),
                 TextField(
                   controller: userNameController,
-                  decoration: InputDecoration(labelText: '이름', hintText: '이름을 입력해 주세요.'),
+                  decoration: const InputDecoration(labelText: '이름', hintText: '이름을 입력해 주세요.'),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 TextField(
                   controller: emailController,
-                  decoration: InputDecoration(labelText: '이메일', hintText: '아이디를 입력해 주세요.'),
+                  decoration: const InputDecoration(labelText: '이메일', hintText: '아이디를 입력해 주세요.'),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 TextField(
                   controller: passwordController,
                   obscureText: true,
-                  decoration: InputDecoration(labelText: '비밀번호'),
+                  decoration: const InputDecoration(labelText: '비밀번호'),
                 ),
-                SizedBox(height: 8),
-                Text('비밀번호는 최소 8자, 문자, 숫자, 특수 문자를 포함해야 합니다.', style: TextStyle(fontSize: 10)),
-                SizedBox(height: 16),
+                const SizedBox(height: 8),
+                const Text('비밀번호는 최소 8자, 문자, 숫자, 특수 문자를 포함해야 합니다.', style: TextStyle(fontSize: 10)),
+                const SizedBox(height: 16),
                 TextField(
                   controller: confirmPasswordController,
                   obscureText: true,
-                  decoration: InputDecoration(labelText: '비밀번호 확인'),
+                  decoration: const InputDecoration(labelText: '비밀번호 확인'),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: signupUser,
-                  child: Text("회원가입"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    minimumSize: Size(double.infinity, 40),
+                    minimumSize: const Size(double.infinity, 40),
                   ),
+                  child: const Text("회원가입"),
                 ),
-                SizedBox(height: 12),
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: Text("로그인하러가기"),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("로그인하러가기"),
                 ),
               ],
             ),
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        backgroundColor: Colors.blue,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.train), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
-        ],
-      ),
-      bottomNavigationBar: bottomNav(),
+      bottomNavigationBar: _bottomNav(), // ← 한 번만 사용
     );
   }
 
-  Widget bottomNav() {
+  Widget _bottomNav() {
     return BottomNavigationBar(
+      currentIndex: _selectedIndex,
+      onTap: _onItemTapped,
       backgroundColor: Colors.blue,
       type: BottomNavigationBarType.fixed,
+      selectedItemColor: Colors.white,
+      unselectedItemColor: Colors.white70,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: ''),
         BottomNavigationBarItem(icon: Icon(Icons.train), label: ''),
