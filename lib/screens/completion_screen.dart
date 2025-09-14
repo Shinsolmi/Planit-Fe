@@ -1,116 +1,121 @@
+// lib/screens/completion_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import 'mypage_screen.dart';
-import 'transportation_screen.dart';
-import 'profile_guest_screen.dart';
 import '../env.dart';
+import '../root_tabs.dart';
 
 class CompletionScreen extends StatefulWidget {
+  const CompletionScreen({super.key});
   @override
-  _CompletionScreenState createState() => _CompletionScreenState();
+  State<CompletionScreen> createState() => _CompletionScreenState();
 }
 
 class _CompletionScreenState extends State<CompletionScreen> {
-  List<dynamic> itinerary = [];
-  bool isLoading = true;
-  int _selectedIndex = 0;
+  late Future<List<dynamic>> _future;
 
   @override
   void initState() {
     super.initState();
-    fetchItinerary();
+    _future = _fetchItinerary();
   }
 
-  Future<void> fetchItinerary() async {
-    final url = Uri.parse('$baseUrl'); // 여기 수정하셈 !!!!!!!!!!!!!!!!!
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        setState(() {
-          itinerary = json.decode(response.body);
-          isLoading = false;
-        });
-      } else {
-        throw Exception('Failed to load itinerary');
-      }
-    } catch (e) {
-      print('Error fetching itinerary: $e');
-      setState(() => isLoading = false);
-    }
-  }
-
-  void _onItemTapped(int index) {
-    if (index == 1) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => TransportSelectionPage()));
-    } else if (index == 3) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => MypageScreen()));
+  Future<List<dynamic>> _fetchItinerary() async {
+    final url = Uri.parse('$baseUrl/');
+    final res = await http.get(url).timeout(const Duration(seconds: 10));
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final body = jsonDecode(res.body);
+      // 서버 응답 구조에 맞게 파싱
+      if (body is List) return body;
+      if (body is Map && body['data'] is List) return List.from(body['data']);
+      return const [];
     } else {
-      setState(() {
-        _selectedIndex = index;
-      });
+      throw Exception('로드 실패: ${res.statusCode} ${res.body}');
     }
+  }
+
+  void _goHomeTab([int index = 0]) {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => RootTabs(initialIndex: index)),
+      (route) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
         backgroundColor: Colors.white,
         foregroundColor: Colors.blue,
         title: GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileGuestScreen())),
-          child: Text('PLANIT'),
+          onTap: () => _goHomeTab(0),
+          child: const Text('PLANIT'),
         ),
-      ),
-      body: isLoading
-          ? Center(child: CircularProgressIndicator())
-          : itinerary.isEmpty
-              ? Center(child: Text('일정 데이터가 없습니다.'))
-              : ListView.builder(
-                  itemCount: itinerary.length,
-                  itemBuilder: (context, index) {
-                    final dayPlan = itinerary[index];
-                    return Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Card(
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Day ${dayPlan["day"]}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              ...List<Widget>.from(dayPlan['plan'].map<Widget>((item) => ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Text(item['time'], style: TextStyle(fontWeight: FontWeight.bold)),
-                                    title: Text(item['place']),
-                                    subtitle: Text(item['memo']),
-                                  )))
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        backgroundColor: Colors.blue,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.directions_transit), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
+        actions: [
+          TextButton(
+            onPressed: () => _goHomeTab(0), // 질문 탭으로
+            child: const Text('홈으로', style: TextStyle(color: Colors.blue)),
+          ),
         ],
       ),
+      body: FutureBuilder<List<dynamic>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return Center(child: Text('오류: ${snap.error}'));
+          }
+          final itinerary = snap.data ?? const [];
+          if (itinerary.isEmpty) {
+            return const Center(child: Text('일정 데이터가 없습니다.'));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: itinerary.length,
+            itemBuilder: (context, index) {
+              final dayPlan = (itinerary[index] as Map?) ?? const {};
+              final plans = (dayPlan['plan'] as List?) ?? const [];
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Day ${dayPlan["day"] ?? ""}',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 6),
+                      ...plans.map<Widget>((e) {
+                        final m = (e as Map?) ?? const {};
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Text('${m['time'] ?? ''}',
+                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                          title: Text('${m['place'] ?? ''}'),
+                          subtitle: Text('${m['memo'] ?? ''}'),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _goHomeTab(1), // 예: 교통 탭으로 돌아가기 원하면 1
+        label: const Text('탭으로 돌아가기'),
+        icon: const Icon(Icons.exit_to_app),
+      ),
+      // ⛔ bottomNavigationBar 없음
     );
   }
 }

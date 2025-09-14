@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:planit/widgets/custom_app_bar.dart';
 import 'dart:convert';
 
-import 'mypage_screen.dart';
-import 'transportation_screen.dart';
-import 'profile_guest_screen.dart';
 import 'completion_screen.dart';
 import '../env.dart';
+import '../services/auth_storage.dart';
 
 class Question5Screen extends StatefulWidget {
+  const Question5Screen({super.key}); // ✅ const 생성자
   @override
   _Question5ScreenState createState() => _Question5ScreenState();
 }
 
 class _Question5ScreenState extends State<Question5Screen> {
   String? selectedSchedule;
-  int _selectedIndex = 0;
 
   final List<String> schedules = ['빼곡한일정', '여유로운일정'];
 
@@ -37,30 +36,11 @@ class _Question5ScreenState extends State<Question5Screen> {
     }
   }
 
-  void _onItemTapped(int index) {
-    if (index == 1) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => TransportSelectionPage()));
-    } else if (index == 3) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => MypageScreen()));
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.blue,
-        title: GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileGuestScreen())),
-          child: Text('PLANIT'),
-        ),
-      ),
+      appBar: CustomAppBar(),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -104,20 +84,6 @@ class _Question5ScreenState extends State<Question5Screen> {
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        backgroundColor: Colors.blue,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.directions_transit), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
-        ],
       ),
     );
   }

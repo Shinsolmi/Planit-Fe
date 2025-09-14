@@ -25,7 +25,6 @@ void main() {
     // BottomNavigationBar 아이콘 확인 (예: Calendar 아이콘)
     expect(find.byIcon(Icons.calendar_today), findsOneWidget);
     expect(find.byIcon(Icons.article), findsOneWidget);
-    expect(find.byIcon(Icons.restaurant), findsOneWidget);
     expect(find.byIcon(Icons.person), findsOneWidget);
   });
 }

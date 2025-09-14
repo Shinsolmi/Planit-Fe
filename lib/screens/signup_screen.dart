@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:planit/widgets/custom_app_bar.dart';
 import 'dart:convert';
 
-import 'question_screen.dart';
-import 'transportation_screen.dart';
-import 'profile_guest_screen.dart';
+import '../tabs_controller.dart';
 import '../env.dart';
+import '../services/auth_storage.dart';      // ⬅️ 토큰 저장 유틸 (있다면)
+import '../root_tabs.dart';                 // ⬅️ 탭 루트로 돌아가기
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -15,12 +16,10 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
-  final TextEditingController userNameController = TextEditingController();
-
-  int _selectedIndex = 3; // 기본: 마이페이지
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
+  final userNameController = TextEditingController();
 
   @override
   void dispose() {
@@ -33,12 +32,12 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Future<void> signupUser() async {
     final email = emailController.text.trim();
-    final password = passwordController.text.trim();
-    final confirmPassword = confirmPasswordController.text.trim();
+    final password = passwordController.text;              // 복잡도/길이 제한 없음
+    final confirmPassword = confirmPasswordController.text;
     final userName = userNameController.text.trim();
 
-    if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty || userName.isEmpty) {
-      showError('모든 항목을 입력해주세요.');
+    if (email.isEmpty || userName.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      showError('이메일/이름/비밀번호를 입력해주세요.');
       return;
     }
     if (password != confirmPassword) {
@@ -47,30 +46,47 @@ class _SignupScreenState extends State<SignupScreen> {
     }
 
     try {
-      // TODO: 베이스 URL을 환경에 맞게 변경 (에뮬: http://10.0.2.2:3000)
       final url = Uri.parse('$baseUrl/users/register');
-
-      final response = await http.post(
+      final res = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-          'user_name': userName,
-        }),
+        body: jsonEncode({'email': email, 'password': password, 'user_name': userName}),
       );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // 성공 시 마이페이지로 이동 (한 번만 이동)
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => ProfileGuestScreen()),
-        );
+      if (!mounted) return;
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        // ⬇️ 서버가 토큰을 준다면 저장 (응답 키는 백엔드에 맞춰 변경)
+        try {
+          final data = jsonDecode(res.body);
+          final token = data is Map ? data['token'] : null;
+          if (token is String && token.isNotEmpty) {
+            await AuthStorage.saveToken(token);
+          }
+          final name = data is Map ? (data['user_name'] ?? data['name']) : null;
+          if (name is String && name.isNotEmpty) {
+            await AuthStorage.saveUserName(name);
+          }
+        } catch (_) {}
+
+        // 🔑 여기서 중복 바텀바 방지 처리
+        final tabs = TabsController.of(context);
+        if (tabs != null) {
+          // 이미 RootTabs 안: 회원가입/로그인 화면만 닫고, 교통 탭으로 전환
+          Navigator.of(context).pop();       // close Signup
+          Navigator.of(context).maybePop();  // close Login (있으면)
+          tabs.setIndex(kTabPerson);      
+        } else {
+          // RootTabs 밖: 루트로 교체(한 번만)
+          Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const RootTabs(initialIndex: kTabPerson)),
+            (route) => false,
+          );
+        }
       } else {
-        showError('회원가입 실패: ${response.body}');
+        showError('회원가입 실패: ${res.statusCode} ${res.body}');
       }
     } catch (e) {
+      if (!mounted) return;
       showError('에러 발생: $e');
     }
   }
@@ -81,41 +97,15 @@ class _SignupScreenState extends State<SignupScreen> {
       builder: (context) => AlertDialog(
         title: const Text('오류'),
         content: Text(message),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('확인')),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('확인'))],
       ),
     );
-  }
-
-  void _onItemTapped(int index) {
-    if (index == _selectedIndex) return;
-    setState(() => _selectedIndex = index);
-
-    switch (index) {
-      case 0:
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => QuestionPage()));
-        break;
-      case 1:
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => TransportSelectionPage()));
-        break;
-      case 3:
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ProfileGuestScreen()));
-        break;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: GestureDetector(
-          onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => QuestionPage())),
-          child: const Text('PLANIT', style: TextStyle(color: Colors.white)),
-        ),
-        backgroundColor: Colors.blue,
-        centerTitle: true,
-      ),
+      appBar: CustomAppBar(),
       backgroundColor: Colors.blue[300],
       body: Center(
         child: Container(
@@ -127,7 +117,8 @@ class _SignupScreenState extends State<SignupScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 16),
-                const Text("회원가입", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
+                const Text("회원가입",
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
                 const SizedBox(height: 24),
                 TextField(
                   controller: userNameController,
@@ -144,8 +135,6 @@ class _SignupScreenState extends State<SignupScreen> {
                   obscureText: true,
                   decoration: const InputDecoration(labelText: '비밀번호'),
                 ),
-                const SizedBox(height: 8),
-                const Text('비밀번호는 최소 8자, 문자, 숫자, 특수 문자를 포함해야 합니다.', style: TextStyle(fontSize: 10)),
                 const SizedBox(height: 16),
                 TextField(
                   controller: confirmPasswordController,
@@ -162,7 +151,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: const Text("회원가입"),
                 ),
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context), // 로그인 화면으로 복귀
                   child: const Text("로그인하러가기"),
                 ),
               ],
@@ -170,24 +159,8 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: _bottomNav(), // ← 한 번만 사용
-    );
-  }
-
-  Widget _bottomNav() {
-    return BottomNavigationBar(
-      currentIndex: _selectedIndex,
-      onTap: _onItemTapped,
-      backgroundColor: Colors.blue,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.white,
-      unselectedItemColor: Colors.white70,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: ''),
-        BottomNavigationBarItem(icon: Icon(Icons.train), label: ''),
-        BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: ''),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
-      ],
+      // ⛔ 탭 바는 여기서 제거합니다.
+      // bottomNavigationBar: _bottomNav(),
     );
   }
 }

@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
-import 'mypage_screen.dart';
-import 'transportation_screen.dart';
-import 'profile_guest_screen.dart';
 import 'question2_screen.dart';
-
 import '../widgets/custom_app_bar.dart'; 
-import '../widgets/bottom_nav_bar.dart';
 import '../env.dart';
+import '../services/auth_storage.dart';
 
 class QuestionPage extends StatefulWidget {
+  const QuestionPage({super.key}); // ✅ const 생성자
   @override
-  _QuestionPageState createState() => _QuestionPageState();
+  State<QuestionPage> createState() => _QuestionPageState();
 }
 
 class _QuestionPageState extends State<QuestionPage> {
@@ -23,7 +19,6 @@ class _QuestionPageState extends State<QuestionPage> {
   };
 
   String? selectedCity;
-  int _selectedIndex = 0;
 
   // 🔵 서버로 도시 전송
   Future<void> sendSelectedCityToServer(String city) async {
@@ -44,17 +39,6 @@ class _QuestionPageState extends State<QuestionPage> {
     }
   }
 
-  void _onItemTapped(int index) {
-    if (index == 1) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => TransportSelectionPage()));
-    } else if (index == 3) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => MypageScreen()));
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -110,15 +94,11 @@ class _QuestionPageState extends State<QuestionPage> {
             SizedBox(height: 20),
             Center(
               child: ElevatedButton(
-                onPressed: selectedCity != null
-                    ? () async {
-                        await sendSelectedCityToServer(selectedCity!); // 🔵 서버로 저장
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => Question2Screen()),
-                        );
-                      }
-                    : null,
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const Question2Screen()),
+                  );
+                },
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(horizontal: 100, vertical: 16),
                   backgroundColor: Colors.blue,
@@ -129,10 +109,6 @@ class _QuestionPageState extends State<QuestionPage> {
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: BottomNavBar( // ✅ 공통 BottomNavBar 사용
-        selectedIndex: _selectedIndex,
-        onItemTapped: _onItemTapped,
       ),
     );
   }

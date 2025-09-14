@@ -1,31 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
-import 'mypage_screen.dart';
-import 'transportation_screen.dart';
-import 'profile_guest_screen.dart';
 import 'question4_screen.dart';
 
 import '../widgets/custom_app_bar.dart'; // ✅ 공통 AppBar
-import '../widgets/bottom_nav_bar.dart'; // ✅ 공통 BottomNavBar
 import '../env.dart';
+import '../services/auth_storage.dart';
 
 class Question3Screen extends StatefulWidget {
+  const Question3Screen({super.key}); // ✅ const 생성자
   @override
   _Question3ScreenState createState() => _Question3ScreenState();
 }
 
 class _Question3ScreenState extends State<Question3Screen> {
   String? selectedTravelType;
-  int _selectedIndex = 0;
 
   final List<String> travelTypes = [
     '혼자', '부모님', '연인', '배우자', '친구', '아이와 함께', '지인'
   ];
 
   Future<void> sendCompanionToServer(String companion) async {
-    final url = Uri.parse('$baseUrl/save-companion'); // ⚠️ 서버 URL 교체 필요
+    final url = Uri.parse('$baseUrl/save-companion'); 
     try {
       final response = await http.post(
         url,
@@ -39,16 +35,6 @@ class _Question3ScreenState extends State<Question3Screen> {
       }
     } catch (e) {
       print('에러 발생: $e');
-    }
-  }
-
-  void _onItemTapped(int index) {
-    if (index == 1) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => TransportSelectionPage()));
-    } else if (index == 3) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => MypageScreen()));
-    } else {
-      setState(() => _selectedIndex = index);
     }
   }
 
@@ -81,12 +67,11 @@ class _Question3ScreenState extends State<Question3Screen> {
             ),
             Spacer(),
             ElevatedButton(
-              onPressed: selectedTravelType != null
-                  ? () async {
-                      await sendCompanionToServer(selectedTravelType!);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => Question4Screen()));
-                    }
-                  : null,
+              onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const Question4Screen()),
+                  );
+                },
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.symmetric(horizontal: 100, vertical: 16),
                 backgroundColor: Colors.blue,
@@ -96,10 +81,6 @@ class _Question3ScreenState extends State<Question3Screen> {
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: BottomNavBar( // ✅ 공통 BottomNavBar
-        selectedIndex: _selectedIndex,
-        onItemTapped: _onItemTapped,
       ),
     );
   }

@@ -2,25 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-import 'mypage_screen.dart';
-import 'transportation_screen.dart';
-import 'profile_guest_screen.dart';
 import 'question5_screen.dart';
 import '../env.dart';
+import '../services/auth_storage.dart';
+import '../widgets/custom_app_bar.dart'; // ✅ 공통 AppBar
 
 class Question4Screen extends StatefulWidget {
+  const Question4Screen({super.key}); // ✅ const 생성자
   @override
   _Question4ScreenState createState() => _Question4ScreenState();
 }
 
 class _Question4ScreenState extends State<Question4Screen> {
   String? selectedTheme;
-  int _selectedIndex = 0;
 
   final List<String> themes = ['자연', '쇼핑', '먹방', '역사', '휴식'];
 
   Future<void> sendThemeToServer(String theme) async {
-    final url = Uri.parse('$baseUrl/save-theme'); // 수정 필요
+    final url = Uri.parse('$baseUrl/save-theme'); 
     try {
       final response = await http.post(
         url,
@@ -37,30 +36,11 @@ class _Question4ScreenState extends State<Question4Screen> {
     }
   }
 
-  void _onItemTapped(int index) {
-    if (index == 1) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => TransportSelectionPage()));
-    } else if (index == 3) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => MypageScreen()));
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.blue,
-        title: GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileGuestScreen())),
-          child: Text('PLANIT'),
-        ),
-      ),
+      appBar: CustomAppBar(),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -89,12 +69,11 @@ class _Question4ScreenState extends State<Question4Screen> {
             ),
             Spacer(),
             ElevatedButton(
-              onPressed: selectedTheme != null
-                  ? () async {
-                      await sendThemeToServer(selectedTheme!);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => Question5Screen()));
-                    }
-                  : null,
+              onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const Question5Screen()),
+                  );
+                },
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.symmetric(horizontal: 100, vertical: 16),
                 backgroundColor: Colors.blue,
@@ -104,20 +83,6 @@ class _Question4ScreenState extends State<Question4Screen> {
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        backgroundColor: Colors.blue,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white70,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.directions_transit), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: ''),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
-        ],
       ),
     );
   }
