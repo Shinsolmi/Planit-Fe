@@ -14,6 +14,7 @@ class Question2Screen extends StatefulWidget {
 
 class _Question2ScreenState extends State<Question2Screen> {
   String? selectedOption;
+  bool _loading = false;
 
   final List<String> options = [
     '1박 2일',
@@ -23,21 +24,31 @@ class _Question2ScreenState extends State<Question2Screen> {
     '5박 6일',
   ];
 
-  Future<void> sendDurationToServer(String duration) async {
-    final url = Uri.parse('$baseUrl/save-duration'); 
+  Future<void> _saveDurationAndNext() async {
+    if (selectedOption == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('숙박일 수를 선택해 주세요.')));
+      return;
+    }
+    setState(() => _loading = true);
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({'duration': duration}),
+      debugPrint('➡️ Q2 /ai/save-duration 직전 days=$selectedOption');
+      final res = await http.post(
+        Uri.parse('$baseUrl/ai/save-duration'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({'duration': selectedOption}),
       );
-      if (response.statusCode == 200) {
-        print('숙박일 수 저장 성공');
+      debugPrint('⬅️ Q2 status=${res.statusCode} body=${res.body}');
+      if (!mounted) return;
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const Question3Screen()));
       } else {
-        print('저장 실패: ${response.statusCode}');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('기간 저장 실패: ${res.statusCode}')));
       }
     } catch (e) {
-      print('에러 발생: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('네트워크 오류: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -50,13 +61,16 @@ class _Question2ScreenState extends State<Question2Screen> {
         padding: const EdgeInsets.all(16.0),
         child: ListView(
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            Center(
+              child: Column(
+                children: [
                 Text('(2/5)', style: TextStyle(fontSize: 16, color: Colors.grey)),
                 SizedBox(height: 8),
                 Text('얼마나 떠나시나요?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 SizedBox(height: 24),
+                ],
+              ),
+            ),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -73,26 +87,25 @@ class _Question2ScreenState extends State<Question2Screen> {
                   }).toList(),
                 ),
                 SizedBox(height: 24),
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const Question3Screen()),
-                     );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 100, vertical: 16),
-                      backgroundColor: Colors.blue,
-                      disabledBackgroundColor: Colors.grey,
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _saveDurationAndNext,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 16),
+                        backgroundColor: Colors.blue,
+                        disabledBackgroundColor: Colors.grey,
+                      ),
+                      child: const Text('다음', style: TextStyle(fontSize: 16)),
                     ),
-                    child: Text('다음', style: TextStyle(fontSize: 16)),
                   ),
                 ),
+                if (_loading) const Center(child: CircularProgressIndicator()),
               ],
             ),
-          ],
         ),
-      ),
     );
   }
 }

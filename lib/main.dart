@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'root_tabs.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  debugPrint('💡 app started');   // <= 이게 콘솔에 보이면 OK
+  runApp(const MyApp());
+}
 
 class NoAnimationPageTransitionsBuilder extends PageTransitionsBuilder {
   const NoAnimationPageTransitionsBuilder();

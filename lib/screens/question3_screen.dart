@@ -15,26 +15,37 @@ class Question3Screen extends StatefulWidget {
 
 class _Question3ScreenState extends State<Question3Screen> {
   String? selectedTravelType;
+  bool _loading = false;
 
   final List<String> travelTypes = [
     '혼자', '부모님', '연인', '배우자', '친구', '아이와 함께', '지인'
   ];
 
-  Future<void> sendCompanionToServer(String companion) async {
-    final url = Uri.parse('$baseUrl/save-companion'); 
+  Future<void> _saveCompanionAndNext() async {
+    if (selectedTravelType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('동행자를 선택해 주세요.')));
+      return;
+    }
+    setState(() => _loading = true);
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({'companion': companion}),
+      debugPrint('➡️ Q3 /ai/save-companion 직전 companion=$selectedTravelType');
+      final res = await http.post(
+        Uri.parse('$baseUrl/ai/save-companion'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({'companion': selectedTravelType}),
       );
-      if (response.statusCode == 200) {
-        print('동행자 정보 저장 성공');
+      debugPrint('⬅️ Q3 status=${res.statusCode} body=${res.body}');
+      if (!mounted) return;
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const Question4Screen()));
       } else {
-        print('저장 실패: ${response.statusCode}');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('동행자 저장 실패: ${res.statusCode}')));
       }
     } catch (e) {
-      print('에러 발생: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('네트워크 오류: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -65,23 +76,23 @@ class _Question3ScreenState extends State<Question3Screen> {
                 );
               }).toList(),
             ),
-            Spacer(),
-            ElevatedButton(
-              onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const Question4Screen()),
-                  );
-                },
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 100, vertical: 16),
-                backgroundColor: Colors.blue,
-                disabledBackgroundColor: Colors.grey,
+            SizedBox(height: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: _loading ? null :  _saveCompanionAndNext,  // ← 여기!
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 16),
+                  backgroundColor: Colors.blue,
+                  disabledBackgroundColor: Colors.grey,
+                ),
+                child: const Text('다음', style: TextStyle(fontSize: 16)),
               ),
-              child: Text('다음', style: TextStyle(fontSize: 16)),
             ),
+            if (_loading) const Center(child: CircularProgressIndicator()),
           ],
         ),
       ),
     );
   }
 }
+

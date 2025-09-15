@@ -19,35 +19,60 @@ class _QuestionPageState extends State<QuestionPage> {
   };
 
   String? selectedCity;
+  bool _loading = false;
 
-  // 🔵 서버로 도시 전송
-  Future<void> sendSelectedCityToServer(String city) async {
-    final url = Uri.parse('$baseUrl/save-city'); // ⚠️ URL 수정 필요
-    try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({'city': city}),
+  Future<void> _saveCityAndNext() async {
+    if (selectedCity == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('도시를 선택해 주세요.')),
       );
-      if (response.statusCode == 200) {
-        print('도시 정보 저장 성공');
+      return;
+    }
+
+    try {
+      setState(() => _loading = true);
+      debugPrint('➡️ Question1: /ai/save-city 호출 직전 city=$selectedCity');
+
+      final url = Uri.parse('$baseUrl/ai/save-city');
+      final res = await http.post(
+        url,
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({'city': selectedCity}),
+      );
+
+      debugPrint('⬅️ /ai/save-city status=${res.statusCode}');
+      debugPrint('⬅️ /ai/save-city body=${res.body}');
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const Question2Screen()),
+        );
       } else {
-        print('저장 실패: ${response.statusCode}');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('도시 저장 실패: ${res.statusCode}')),
+        );
       }
     } catch (e) {
-      print('에러 발생: $e');
+      debugPrint('❌ /ai/save-city 에러: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('네트워크 오류: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(), // ✅ 공통 AppBar 사용
+      appBar: const CustomAppBar(),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ListView(
-          children: [
+        children: [
             Center(
               child: Column(
                 children: [
@@ -94,19 +119,16 @@ class _QuestionPageState extends State<QuestionPage> {
             SizedBox(height: 20),
             Center(
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const Question2Screen()),
-                  );
-                },
+                onPressed: _loading ? null : _saveCityAndNext,  // ← 여기!
                 style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(horizontal: 100, vertical: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 16),
                   backgroundColor: Colors.blue,
                   disabledBackgroundColor: Colors.grey,
                 ),
-                child: Text('다음', style: TextStyle(fontSize: 16)),
+                child: const Text('다음', style: TextStyle(fontSize: 16)),
               ),
             ),
+            if (_loading) const Center(child: CircularProgressIndicator()),
           ],
         ),
       ),

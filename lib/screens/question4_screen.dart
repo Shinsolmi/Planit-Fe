@@ -15,26 +15,39 @@ class Question4Screen extends StatefulWidget {
 
 class _Question4ScreenState extends State<Question4Screen> {
   String? selectedTheme;
+  bool _loading = false;
 
   final List<String> themes = ['자연', '쇼핑', '먹방', '역사', '휴식'];
 
-  Future<void> sendThemeToServer(String theme) async {
-    final url = Uri.parse('$baseUrl/save-theme'); 
+
+  Future<void> _saveThemeAndNext() async {
+    if (selectedTheme == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('테마를 선택해 주세요.')));
+      return;
+    }
+    setState(() => _loading = true);
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({'theme': theme}),
+      debugPrint('➡️ Q4 /ai/save-theme 직전 theme=$selectedTheme');
+      final res = await http.post(
+        Uri.parse('$baseUrl/ai/save-theme'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({'theme': selectedTheme}),
       );
-      if (response.statusCode == 200) {
-        print('테마 정보 저장 성공');
+      debugPrint('⬅️ Q4 status=${res.statusCode} body=${res.body}');
+      if (!mounted) return;
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const Question5Screen()));
       } else {
-        print('저장 실패: ${response.statusCode}');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('테마 저장 실패: ${res.statusCode}')));
       }
     } catch (e) {
-      print('에러 발생: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('네트워크 오류: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
+
 
 
   @override
@@ -67,20 +80,19 @@ class _Question4ScreenState extends State<Question4Screen> {
                 );
               }).toList(),
             ),
-            Spacer(),
-            ElevatedButton(
-              onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const Question5Screen()),
-                  );
-                },
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 100, vertical: 16),
-                backgroundColor: Colors.blue,
-                disabledBackgroundColor: Colors.grey,
+            SizedBox(height: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: _loading ? null : _saveThemeAndNext,  // ← 여기!
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 16),
+                  backgroundColor: Colors.blue,
+                  disabledBackgroundColor: Colors.grey,
+                ),
+                child: const Text('다음', style: TextStyle(fontSize: 16)),
               ),
-              child: Text('다음', style: TextStyle(fontSize: 16)),
             ),
+            if (_loading) const Center(child: CircularProgressIndicator()),
           ],
         ),
       ),

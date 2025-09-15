@@ -30,12 +30,15 @@ class AuthStorage {
     await sp.remove(_kUserNameKey);
   }
 
-    static Future<void> saveUserName(String name) async {
+  /// 유저명 저장
+  static Future<void> saveUserName(String name) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kUserNameKey, name);
   }
 
+  /// 유저명 읽기 (없으면 null)
   static Future<String?> getUserName() async {
     final sp = await SharedPreferences.getInstance();
+    return sp.getString(_kUserNameKey); // ← 반환 추가
   }
 }
