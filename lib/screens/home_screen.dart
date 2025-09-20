@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:planit/screens/my_schedules_screen.dart';
 import '../widgets/custom_app_bar.dart';
 import '../services/auth_storage.dart';      // isLoggedIn()
 import 'login_screen.dart';
@@ -38,28 +39,29 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-
-          // 예) 마이페이지도 로그인 가드
+          // ✅ 내 일정으로 이동 (마이페이지 버튼 제거하고 교체)
           ElevatedButton.icon(
-            icon: const Icon(Icons.person),
-            label: const Text('마이페이지'),
+            icon: const Icon(Icons.event_note),
+            label: const Text('내 일정'),
             onPressed: () => _requireLoginThen(
               context,
               () {
-                // 사람 탭으로 이동하고 싶다면 RootTabs 탭 전환을 사용
-                // (RootTabs 내부 화면이라면 TabsController로 setIndex(2))
-                // 외부에서 접근하면 RootTabs(initialIndex: 2)로 pushAndRemoveUntil 사용
-                // 여기서는 간단히 로그인만 요구하고, 사람 탭 이동은 탭바를 눌러 유도해도 OK
+                // TODO: 너희 프로젝트의 "내 일정 목록/화면"으로 변경
+                // 예1) 목록 화면이 따로 있으면: MySchedulesScreen()
+                // 예2) 저장된 일정 요약 화면이면: CompletionScreen()
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MySchedulesScreen(), 
+                  ),
+                );
               },
             ),
           ),
 
           const SizedBox(height: 24),
-          // 커뮤니티/배너/추천 섹션 등 자유롭게 추가
-          // Sliver로 구성해도 되고, 위젯 분리해서 붙여도 됩니다.
         ],
       ),
-      // ⛔ 바텀바는 RootTabs 전용 (여기엔 두지 않음)
     );
   }
 }

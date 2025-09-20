@@ -16,6 +16,10 @@ class RecommendationResultScreen extends StatefulWidget {
 
 class _RecommendationResultScreenState extends State<RecommendationResultScreen> {
   bool _saving = false;
+  bool _selectMode = false;                       // 선택 모드 on/off
+  final Set<_PickedPlace> _picked = {};           // 제외할 아이템 모음
+
+  void _toggleSelectMode() => setState(() => _selectMode = !_selectMode);
 
   // 파싱된 일정 (일차별)
   late final List<_DayPlan> _days = _parseDetails(widget.plan['details']);
@@ -72,79 +76,199 @@ class _RecommendationResultScreenState extends State<RecommendationResultScreen>
     // 필요하면 오전/오후/한글시간 같은 포맷도 여기서 보정 가능
   }
 
-  Future<void> _saveToMySchedules() async {
-    setState(() => _saving = true);
-    try {
-      final jwt = await AuthStorage.getToken();
-      final url = Uri.parse('$baseUrl/schedules/save-gpt'); // 엔드포인트 확인
-      final res = await http.post(
+
+Future<void> _saveToMySchedules() async {
+  setState(() => _saving = true);
+  try {
+    final jwt = await AuthStorage.getToken();
+    final url = Uri.parse('$baseUrl/schedules/save-gpt');
+
+    // plan에서 받은 값
+    final start = widget.plan['startdate'] as String?;
+    final end   = widget.plan['enddate'] as String?;
+
+    // 조건부 payload 구성
+    final payload = <String, dynamic>{
+      'title': (widget.plan['title'] ?? '추천 일정').toString(),
+      'destination': widget.plan['city'],
+      'details': widget.plan['details'],                  // [{day, plan:[...]}]
+      'duration': _days.isNotEmpty ? _days.length : null, // 일수 fallback
+    };
+
+    // start/end가 있으면 포함 (없으면 서버가 duration으로 계산)
+    if (start != null && start.isNotEmpty) payload['startdate'] = start;
+    if (end != null && end.isNotEmpty)     payload['enddate']   = end;
+
+    // null/빈값 제거 (duration이 null이면 자동 제외)
+    payload.removeWhere((k, v) => v == null || (v is String && v.isEmpty));
+
+    final res = await http.post(
       url,
-        headers: {
-          'Content-Type': 'application/json',
-          if (jwt != null && jwt.isNotEmpty) 'Authorization': 'Bearer $jwt',
-        },
-        body: jsonEncode({
-          'title': 'GPT 추천 일정',
-          'destination': widget.plan['city'],
-          'startdate': widget.plan['startdate'],
-          'enddate': widget.plan['enddate'],
-          'details': widget.plan['details'], // 원본 스키마 그대로 전달
-        }),
+      headers: {
+        'Content-Type': 'application/json',
+        if (jwt != null && jwt.isNotEmpty) 'Authorization': 'Bearer $jwt',
+      },
+      body: jsonEncode(payload),
+    );
+
+    debugPrint('[SAVE-GPT] status=${res.statusCode}');
+    debugPrint('[SAVE-GPT] body=${res.body}');
+
+    if (!mounted) return;
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      Map<String, dynamic>? data;
+      try { data = jsonDecode(res.body) as Map<String, dynamic>; } catch (_) {}
+      final id = data?['scheduleId'] as int?;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => CompletionScreen(scheduleId: id)),
       );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('저장 실패: ${res.statusCode}  ${res.body}')),
+      );
+    }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('오류: $e')));
+  } finally {
+    if (mounted) setState(() => _saving = false);
+  }
+}
 
-      debugPrint('[SAVE-GPT] status=${res.statusCode}');
-      debugPrint('[SAVE-GPT] body=${res.body}');
+Future<void> _refineByRemovingPicked() async {
+  if (_picked.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('제외할 장소를 선택해 주세요.')),
+    );
+    return;
+  }
+  setState(() => _saving = true);
+  try {
+    final jwt = await AuthStorage.getToken();
+    final uri = Uri.parse('$baseUrl/ai/schedule-refine-diff');
 
-      if (!mounted) return;
-      
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final id = data['scheduleId'] as int;
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => CompletionScreen(scheduleId: id)), // ← 전달
-        );
-      }else {
-        if (!mounted) return;
+    final remove = _picked
+        .map((e) => {'day': e.day, 'time': e.time, 'place': e.place})
+        .toList();
+
+    final payload = {
+      'city': widget.plan['city'],
+      if (widget.plan['startdate'] != null) 'startdate': widget.plan['startdate'],
+      if (widget.plan['enddate']   != null) 'enddate':   widget.plan['enddate'],
+      'duration': _days.length,
+      'baseDetails': widget.plan['details'],
+      'remove': remove,
+      'policy': 'keep-others',
+    };
+
+    final res = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (jwt != null && jwt.isNotEmpty) 'Authorization': 'Bearer $jwt',
+      },
+      body: jsonEncode(payload),
+    );
+
+    debugPrint('[REFINE-DIFF] status=${res.statusCode}');
+    debugPrint('[REFINE-DIFF] body=${res.body}');
+
+    if (!mounted) return;
+
+    // ✅ 422 처리: 최소 개수 미달/빈 일차
+    if (res.statusCode == 422) {
+      try {
+        final m = jsonDecode(res.body) as Map<String, dynamic>;
+        final lacks = (m['lacks'] as List? ?? const [])
+            .map((e) => (e as Map)['day'])
+            .where((d) => d != null)
+            .join(', ');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장 실패: ${res.statusCode}  ${res.body}')),
+          SnackBar(content: Text('일부 일차가 충분히 채워지지 않았어요 (day: $lacks). 항목을 덜 빼거나 다시 시도해 주세요.')),
+        );
+      } catch (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('추천이 충분하지 않아요. 다시 시도해 주세요.')),
         );
       }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('오류: $e')));
-    } finally {
-      if (mounted) setState(() => _saving = false);
+      setState(() => _saving = false); // 선택모드 유지
+      return;
     }
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final newPlan = jsonDecode(res.body) as Map<String, dynamic>;
+
+      // (옵션) 빈 결과 가드
+      if (_allDaysEmpty(newPlan)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('추천 결과가 비어 있어요. 다른 항목을 선택하거나 다시 시도해 주세요.')),
+        );
+        setState(() => _saving = false);
+        return;
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => RecommendationResultScreen(plan: newPlan)),
+      );
+      return;
+    }
+
+    // 그 외 실패
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('재추천 실패: ${res.statusCode} ${res.body}')),
+    );
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('오류: $e')),
+    );
+  } finally {
+    if (mounted) setState(() => _saving = false);
   }
+}
 
   @override
   Widget build(BuildContext context) {
     final city = (widget.plan['city'] ?? '') as String;
     final start = (widget.plan['startdate'] ?? '') as String;
     final end = (widget.plan['enddate'] ?? '') as String;
+    final title = (widget.plan['title'] ?? '추천 결과 미리보기').toString();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('추천 결과 미리보기')),
+      appBar: AppBar(title: Text(title)),
       body: Stack(
         children: [
           if (_days.isEmpty)
             const Center(child: Text('표시할 일정이 없어요. 다시 추천을 받아주세요.'))
           else
-            ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemCount: _days.length,
-              itemBuilder: (context, i) {
-                final day = _days[i];
-                return _DaySection(
-                  title: 'Day ${day.day}',
-                  subtitle: _subtitle(city, start, end, day.day),
-                  items: day.items,
-                );
-              },
-            ),
+          // ✅ 선택모드/체크 반영 버전
+          ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemCount: _days.length,
+            itemBuilder: (context, i) {
+              final day = _days[i];
+              return _DaySection(
+                day: day.day, // ✅ 필수
+                items: day.items,
+                subtitle: _subtitle(city, start, end, day.day),
+                // 선택 모드 쓰는 경우에만 ↓ 추가
+                selectMode: _selectMode,
+                isPicked: (it) => _picked.contains(
+                  _PickedPlace(day: day.day, time: it.time, place: it.place),
+                ),
+                onPickToggle: (it, pick) {
+                  setState(() {
+                    final ref = _PickedPlace(day: day.day, time: it.time, place: it.place);
+                    if (pick) _picked.add(ref); else _picked.remove(ref);
+                  });
+                },
+              );
+            },
+          ),
           // 하단 고정 버튼
           Positioned(
             left: 0, right: 0, bottom: 0,
@@ -162,8 +286,14 @@ class _RecommendationResultScreenState extends State<RecommendationResultScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('다시 선택하기'),
+                      onPressed: _saving ? null : () {
+                        if (_selectMode) {
+                          _refineByRemovingPicked();        // 선택완료 → 재추천 호출
+                        } else {
+                          _toggleSelectMode();               // 선택모드 켜기
+                        }
+                      },
+                      child: Text(_selectMode ? '선택 완료' : '부분 재추천'),
                     ),
                   ),
                 ],
@@ -176,20 +306,44 @@ class _RecommendationResultScreenState extends State<RecommendationResultScreen>
     );
   }
 
-  String? _subtitle(String city, String start, String end, int day) {
-    // 필요하면 Day별 실제 날짜 계산해서 넣을 수 있음. 지금은 도시/범위만 간단히.
-    if ((city + start + end).isEmpty) return null;
-    return [if (city.isNotEmpty) city, if (start.isNotEmpty && end.isNotEmpty) '$start ~ $end'].join(' · ');
-  }
+    String? _subtitle(String city, String start, String end, int day) {
+      // 필요하면 Day별 실제 날짜 계산해서 넣을 수 있음. 지금은 도시/범위만 간단히.
+      if ((city + start + end).isEmpty) return null;
+      return [if (city.isNotEmpty) city, if (start.isNotEmpty && end.isNotEmpty) '$start ~ $end'].join(' · ');
+    }
+    
+    bool _allDaysEmpty(Map<String, dynamic> plan) {
+      final details = plan['details'];
+      if (details is! List) return true;
+      for (final d in details) {
+        final list = (d is Map) ? d['plan'] : null;
+        if (list is List && list.isNotEmpty) return false;
+      }
+      return true;
+    }
 }
 
 // ---- 뷰 위젯들 ----
-
+// ✅ 기존 _DaySection 교체
 class _DaySection extends StatelessWidget {
-  const _DaySection({required this.title, this.subtitle, required this.items});
-  final String title;
-  final String? subtitle;
+  const _DaySection({
+    required this.day,
+    required this.items,
+    this.subtitle,
+    // ⬇️ 추가된 선택 파라미터들
+    this.selectMode = false,
+    this.isPicked,
+    this.onPickToggle,
+  });
+
+  final int day;
   final List<_PlanItem> items;
+  final String? subtitle;
+
+  // ⬇️ 추가
+  final bool selectMode;
+  final bool Function(_PlanItem item)? isPicked;
+  final void Function(_PlanItem item, bool pick)? onPickToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -201,20 +355,22 @@ class _DaySection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Day 헤더
             Row(
               children: [
-                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                Text('Day $day', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                 const SizedBox(width: 8),
                 if (subtitle != null)
-                  Expanded(
-                    child: Text(subtitle!, style: TextStyle(color: Colors.grey[600]), overflow: TextOverflow.ellipsis),
-                  ),
+                  Expanded(child: Text(subtitle!, style: TextStyle(color: Colors.grey[600]), overflow: TextOverflow.ellipsis)),
               ],
             ),
             const SizedBox(height: 8),
-            // 일정 아이템들
-            ...items.map((it) => _PlanTile(item: it)),
+            ...items.map((it) => _PlanTile(
+                  day: day,
+                  item: it,
+                  selectMode: selectMode,                 // ⬅️ 추가
+                  picked: isPicked?.call(it) ?? false,    // ⬅️ 추가
+                  onPickToggle: onPickToggle,             // ⬅️ 추가
+                )),
           ],
         ),
       ),
@@ -222,29 +378,52 @@ class _DaySection extends StatelessWidget {
   }
 }
 
+// ✅ 기존 _PlanTile 교체
 class _PlanTile extends StatelessWidget {
-  const _PlanTile({required this.item});
+  const _PlanTile({
+    required this.day,
+    required this.item,
+    // ⬇️ 추가된 선택 파라미터들 (기본값 있음)
+    this.selectMode = false,
+    this.picked = false,
+    this.onPickToggle,
+  });
+
+  final int day;
   final _PlanItem item;
+
+  // ⬇️ 추가
+  final bool selectMode;
+  final bool picked;
+  final void Function(_PlanItem item, bool pick)? onPickToggle;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    if (!selectMode) {
+      // 기존 모드
+      return ListTile(
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        leading: SizedBox(width: 64, child: Text(item.time, style: const TextStyle(fontWeight: FontWeight.w600))),
+        title: Text(item.place, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        subtitle: item.memo.isNotEmpty ? Text(item.memo, style: TextStyle(color: Colors.grey[700])) : null,
+        trailing: const Icon(Icons.chevron_right, size: 18),
+      );
+    }
+    // 선택 모드: 체크박스
+    return CheckboxListTile(
+      value: picked,
+      onChanged: (v) => onPickToggle?.call(item, v ?? false),
       dense: true,
       contentPadding: EdgeInsets.zero,
-      leading: Container(
-        width: 64,
-        alignment: Alignment.centerLeft,
-        child: Text(item.time, style: const TextStyle(fontWeight: FontWeight.w600)),
-      ),
+      secondary: SizedBox(width: 64, child: Text(item.time, style: const TextStyle(fontWeight: FontWeight.w600))),
       title: Text(item.place, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
       subtitle: item.memo.isNotEmpty ? Text(item.memo, style: TextStyle(color: Colors.grey[700])) : null,
-      trailing: const Icon(Icons.chevron_right, size: 18),
-      onTap: () {
-        // TODO: 상세보기 이동이 필요하면 여기서 처리
-      },
+      controlAffinity: ListTileControlAffinity.leading,
     );
   }
 }
+
 
 // ---- 모델 ----
 
@@ -259,4 +438,19 @@ class _PlanItem {
   final String place;
   final String memo;
   _PlanItem({required this.time, required this.place, required this.memo});
+}
+
+class _PickedPlace {
+  final int day;
+  final String time;
+  final String place;
+  const _PickedPlace({required this.day, required this.time, required this.place});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _PickedPlace && day == other.day && time == other.time && place == other.place;
+
+  @override
+  int get hashCode => Object.hash(day, time, place);
 }
