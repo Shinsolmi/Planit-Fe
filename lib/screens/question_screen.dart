@@ -14,7 +14,7 @@ class QuestionPage extends StatefulWidget {
 
 class _QuestionPageState extends State<QuestionPage> {
   final Map<String, List<String>> cityCategories = {
-    '일본': ['도쿄', '오사카', '교토', '후쿠오카', '시즈오카', '나고야', '삿포로', '오키나와'],
+    '일본': ['도쿄', '오사카', '교토', '후쿠오카', '시즈오카', '나고야', '삿포로', '오키나와', '나가사키'],
     '중국': ['충칭', '상하이', '베이징'],
   };
 

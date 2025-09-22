@@ -185,7 +185,7 @@ Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
       _menuItem(Icons.event_available, '예정된 일정', onTap: () { /* TODO */ }),
       _menuItem(Icons.history, '지난 일정 관리', onTap: () { /* TODO */ }),
       _menuItem(Icons.train, '저장한 대중교통 팁', onTap: () { /* TODO */ }),
-      _menuItem(Icons.rate_review, '작성한 후기', onTap: () { /* TODO */ }),
+      _menuItem(Icons.rate_review, '작성한 글', onTap: () { /* TODO */ }),
 
       const SizedBox(height: 16),
 
