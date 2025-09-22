@@ -1,9 +1,11 @@
+// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:planit/screens/my_schedules_screen.dart';
+import 'package:planit/screens/search_page.dart';
 import '../widgets/custom_app_bar.dart';
-import '../services/auth_storage.dart';      // isLoggedIn()
+import '../services/auth_storage.dart';
 import 'login_screen.dart';
-import 'question_screen.dart';               // 로그인 후 진행
+import 'question_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -21,12 +23,27 @@ class HomeScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('PLANIT', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          TextField(
+            decoration: const InputDecoration(
+              hintText: '도시, 장소 등을 검색해 보세요',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+              ),
+            ),
+            onSubmitted: (String value) {
+              if (value.isNotEmpty) {
+                // ✏️ SearchPage로 이동할 때 검색어(value)를 전달
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => SearchPage(query: value)),
+                );
+              }
+            },
+          ),
           const SizedBox(height: 8),
           const Text('여행을 시작해 볼까요?'),
           const SizedBox(height: 16),
-
-          // 🔵 여행 만들기: 로그인 필요로 변경
           ElevatedButton.icon(
             icon: const Icon(Icons.create),
             label: const Text('여행 만들기'),
@@ -39,16 +56,12 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          // ✅ 내 일정으로 이동 (마이페이지 버튼 제거하고 교체)
           ElevatedButton.icon(
             icon: const Icon(Icons.event_note),
             label: const Text('내 일정'),
             onPressed: () => _requireLoginThen(
               context,
               () {
-                // TODO: 너희 프로젝트의 "내 일정 목록/화면"으로 변경
-                // 예1) 목록 화면이 따로 있으면: MySchedulesScreen()
-                // 예2) 저장된 일정 요약 화면이면: CompletionScreen()
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -58,7 +71,6 @@ class HomeScreen extends StatelessWidget {
               },
             ),
           ),
-
           const SizedBox(height: 24),
         ],
       ),
