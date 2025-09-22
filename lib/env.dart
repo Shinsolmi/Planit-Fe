@@ -2,5 +2,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 const String _envBase = String.fromEnvironment('BASE_URL', defaultValue: '');
 
-const _forced = 'http://10.0.2.2:3000'; 
-String get baseUrl => _envBase.isNotEmpty ? _envBase : _forced;
+
+const bool useTunnel = false; // false면 로컬
+const _tunnel = 'https://82e9ad5407df.ngrok-free.app';
+const _local  = 'http://10.0.2.2:3000';
+String get baseUrl => _envBase.isNotEmpty ? _envBase : (useTunnel ? _tunnel : _local);
+

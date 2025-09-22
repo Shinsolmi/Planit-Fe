@@ -4,10 +4,6 @@ import 'package:http/http.dart' as http;
 import 'package:planit/env.dart';
 import 'package:planit/services/auth_storage.dart';
 
-/// 사용법:
-/// Navigator.push(context, MaterialPageRoute(
-///   builder: (_) => ScheduleDetailScreen(data: responseJsonMap),
-/// ));
 class ScheduleDetailScreen extends StatefulWidget {
   const ScheduleDetailScreen({
     super.key,
@@ -26,6 +22,13 @@ class ScheduleDetailScreen extends StatefulWidget {
 class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
   Map<String, dynamic>? _data;
   bool _loading = true;
+  bool _editingMode = false;
+  bool _changed = false;
+
+  void _toggleEditingMode() {
+    setState(() => _editingMode = !_editingMode);
+    _snack(_editingMode ? '편집 모드: 수정할 장소를 탭하세요' : '편집 모드 종료');
+  }
 
   @override
   void initState() {
@@ -39,59 +42,294 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
   }
 
   Future<void> _loadById() async {
-    setState(() { _loading = true; });
+    if (!mounted) return;
+    setState(() => _loading = true);
+
     try {
-      final id = widget.scheduleId; // 화면 생성 시 넘겨준 id
+      final id = widget.scheduleId;
       if (id == null) {
         debugPrint('[DETAIL] scheduleId=null');
-        setState(() { _data = null; });
+        setState(() => _data = null);
         return;
       }
 
       final jwt = await AuthStorage.getToken();
       final uri = Uri.parse('$baseUrl/schedules/$id');
-      debugPrint('➡️ GET $uri');
-      final res = await http.get(
-        uri,
-        headers: {
-          if (jwt != null && jwt.isNotEmpty) 'Authorization': 'Bearer $jwt', // ✅ 필수
-        },
-      );
-      debugPrint('⬅️ status=${res.statusCode}');
-      debugPrint('⬅️ body=${res.body}');
+
+      final res = await http
+          .get(
+            uri,
+            headers: {
+              if (jwt != null && jwt.isNotEmpty) 'Authorization': 'Bearer $jwt',
+            },
+          )
+          .timeout(const Duration(seconds: 12));
+
+      debugPrint('GET $uri -> ${res.statusCode}');
+      debugPrint(res.body);
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
         final map = jsonDecode(res.body) as Map<String, dynamic>;
-        setState(() { _data = map; });
+        if (!mounted) return;
+        setState(() => _data = map);
+      } else if (res.statusCode == 401 || res.statusCode == 403) {
+        // 인증 문제 → 로그인 화면 등으로 유도
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('로그인이 필요합니다. 다시 로그인해주세요.')),
+        );
+        // Navigator.pushReplacementNamed(context, '/login'); // 앱 정책에 맞게
+        setState(() => _data = null);
       } else {
-        // 상태/바디 그대로 보여주면 원인 파악 쉬움
-        setState(() { _data = null; });
-        // 원하면 스낵바로 즉시 표시
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('상세 실패: ${res.statusCode} ${res.body}')),
-          );
-        }
+        if (!mounted) return;
+        setState(() => _data = null);
+        final bodyShort = res.body.length > 200 ? '${res.body.substring(0, 200)}...' : res.body;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('상세 실패: ${res.statusCode} $bodyShort')),
+        );
       }
     } catch (e) {
       debugPrint('[DETAIL] error: $e');
-      setState(() { _data = null; });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('네트워크 오류: $e')),
-        );
-      }
+      if (!mounted) return;
+      setState(() => _data = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('네트워크 오류: $e')),
+      );
     } finally {
-      if (mounted) setState(() { _loading = false; });
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _saveAllFromParsed(
+    List<_DayPlan> parsed, {
+    String? overrideTitle,          
+    String? overrideDestination,    // (선택) 필요시 쓰려고 같이 둠
+    String? overrideStart,
+    String? overrideEnd,
+  }) async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+
+    try {
+    final schedule = (_data?['schedule'] as Map<String, dynamic>?) ?? {};
+    final payload = {
+      'title'      : overrideTitle      ?? (schedule['title'] ?? '').toString(),          
+      'destination': overrideDestination?? (schedule['destination'] ?? '').toString(),
+      'startdate'  : overrideStart      ?? _safeDateString(schedule['startdate']),
+      'enddate'    : overrideEnd        ?? _safeDateString(schedule['enddate']),
+      'details'    : parsed.map((d) => {
+        'day': d.day,
+        'plan': d.items
+            .where((it) => it.place.trim().isNotEmpty && it.time.trim().isNotEmpty)
+            .map((it) => {
+              'time' : it.time.length == 5 ? '${it.time}:00' : it.time,
+              'place': it.place.trim(),
+              'memo' : it.memo,
+            }).toList(),
+      }).where((day) => (day['plan'] as List).isNotEmpty).toList(),
+    };
+
+      final jwt = await AuthStorage.getToken();
+      final id = widget.scheduleId ?? (_data?['schedule']?['schedule_id']);
+      final uri = Uri.parse('$baseUrl/schedules/$id/full');
+
+      final res = await http.put(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          if (jwt != null && jwt.isNotEmpty) 'Authorization': 'Bearer $jwt',
+        },
+        body: jsonEncode(payload),
+      );
+
+      debugPrint('PUT $uri -> ${res.statusCode}');
+      debugPrint(res.body);
+
+      if (!mounted) return; // 응답 후 UI 접근 전 가드
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        _changed = true;
+        await _loadById();          // 저장 후 즉시 최신 데이터 다시 가져오기
+        if (!mounted) return;
+        _snack('저장 완료');
+      } else {
+        _snack('저장 실패: ${res.statusCode} ${res.body}');
+      }
+    } catch (e) {
+      _snack('네트워크 오류: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _openEditSheet({
+    required int dayIndex,     // parsed에서의 index (0-based)
+    required int itemIndex,    // 해당 day의 plan index
+  }) async {
+    final parsed = _parseDetails(_data?['details']);
+    final item = parsed[dayIndex].items[itemIndex];
+
+    final placeCtrl = TextEditingController(text: item.place);
+    final memoCtrl  = TextEditingController(text: item.memo);
+    TimeOfDay? time = _parseHHmm(item.time);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('상세 일정 편집', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: placeCtrl,
+                decoration: const InputDecoration(labelText: '장소(place)'),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: time ?? const TimeOfDay(hour: 10, minute: 0),
+                        );
+                        if (picked != null) {
+                          time = picked;
+                          (context as Element).markNeedsBuild();
+                        }
+                      },
+                      child: Text(time != null ? _fmt(time!) : '시간 선택'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: memoCtrl,
+                      decoration: const InputDecoration(labelText: '메모(memo)'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    final place = placeCtrl.text.trim();
+                    if (place.isEmpty) {
+                      _snack('장소를 입력하세요');
+                      return;
+                    }
+                    final hhmm = time != null ? _fmt(time!) : item.time;
+                    Navigator.pop(context);
+
+                    final newParsed = _parseDetails(_data?['details']);
+                    newParsed[dayIndex].items[itemIndex] =
+                        _PlanItem(time: hhmm, place: place, memo: memoCtrl.text.trim());
+
+                    await _saveAllFromParsed(newParsed);
+                  },
+                  child: const Text('저장'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openEditTitleDialog() async {
+    if (!mounted) return;
+
+    final schedule = (_data?['schedule'] as Map<String, dynamic>?) ?? {};
+    final currentTitle = (schedule['title'] ?? '').toString();
+    final parsed = _parseDetails(_data?['details']);
+
+    final ctrl = TextEditingController(text: currentTitle);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('제목 수정'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(hintText: '새 제목을 입력하세요'),
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => Navigator.pop(ctx, true),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('저장')),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      final newTitle = ctrl.text.trim();
+      if (newTitle.isEmpty) {
+        _snack('제목을 입력하세요');
+        return;
+      }
+      await _saveAllFromParsed(parsed, overrideTitle: newTitle);
+    }
+  }
+
+  Future<void> _confirmDelete({required int dayIndex, required int itemIndex}) async {
+    if (!mounted) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('삭제할까요?'),
+        content: const Text('되돌릴 수 없습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false), // ← 바깥 context X
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),  // ← builder의 context
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      // showDialog가 닫히는 동안 위젯이 사라졌을 수 있으니 한 번 더 체크
+      if (!mounted) return;
+
+      final newParsed = _parseDetails(_data?['details']);
+      newParsed[dayIndex].items.removeAt(itemIndex);
+      if (newParsed[dayIndex].items.isEmpty) newParsed.removeAt(dayIndex);
+
+      await _saveAllFromParsed(newParsed); // 반드시 await
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (_data == null) return const Scaffold(body: Center(child: Text('일정을 불러올 수 없어요.')));
-    // ⬇️ 기존 detail 렌더링 코드 사용
-    return _buildDetail(_data!);
+    return PopScope(
+      canPop: false, // 우리가 직접 pop하면서 result를 넘김
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;                 // 이미 pop되면 아무 것도 안 함
+        Navigator.pop(context, _changed);   // 상세 변경 여부를 결과로 전달
+      },
+      child: _loading
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : (_data == null
+              ? const Scaffold(body: Center(child: Text('일정을 불러올 수 없어요.')))
+              : _buildDetail(_data!)),
+    );
   }
 
   Widget _buildDetail(Map<String, dynamic> data) {
@@ -107,12 +345,49 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
 
     // 3) UI
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: parsed.isEmpty
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          if (_editingMode) ...[
+            IconButton(
+              icon: const Icon(Icons.title_rounded),
+              iconSize: 28,  
+              color: Theme.of(context).colorScheme.primary,  // 제목수정 포인트 색               
+              onPressed: _openEditTitleDialog,
+            ),
+            IconButton(
+              icon: const Icon(Icons.check_rounded, color: Colors.green),
+              iconSize: 30,     
+              onPressed: () {
+                setState(() => _editingMode = false);
+                _snack('편집 모드 종료');
+              },
+            ),
+          ] else
+            IconButton(
+              icon: const Icon(Icons.edit_note_rounded),
+              iconSize: 32,                     
+              color: Theme.of(context).colorScheme.primary,  // 큰 편집 아이콘 색
+              onPressed: _toggleEditingMode,
+            ),
+         ],
+        bottom: _editingMode
+          ? PreferredSize(
+              preferredSize: const Size.fromHeight(28),
+              child: Container(
+                height: 28,
+                alignment: Alignment.center,
+                child: const Text('편집 모드: 장소를 탭하면 수정 / 휴지통으로 삭제',
+                    style: TextStyle(fontSize: 12)),
+              ),
+            )
+          : null,
+        ),
+        body: parsed.isEmpty
           ? const Center(child: Text('등록된 상세 일정이 없습니다.'))
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              itemCount: parsed.length + 1, // 상단 요약 + 일차 섹션들
+              itemCount: parsed.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 if (index == 0) {
@@ -127,7 +402,9 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
                 return _DaySection(
                   day: dayPlan.day,
                   items: dayPlan.items,
-                  // subtitle: '$start ~ $end', // 원하면 주석 해제
+                  editing: _editingMode, 
+                  onEdit: (itemIndex) => _openEditSheet(dayIndex: index - 1, itemIndex: itemIndex),
+                  onDelete: (itemIndex) => _confirmDelete(dayIndex: index - 1, itemIndex: itemIndex),
                 );
               },
             ),
@@ -189,8 +466,21 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
     final s = v.toString();
     return s.length >= 10 ? s.substring(0, 10) : s;
   }
+  
+  void _snack(String m) =>
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  TimeOfDay? _parseHHmm(String s) {
+    try {
+      final p = s.split(':');
+      return TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+    } catch (_) { return null; }
+  }
+
+  String _fmt(TimeOfDay t) =>
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 }
-// ---- 모델 (전역 스코프에 두세요) ----
+// ---- 모델 ----
 class _DayPlan {
   final int day;
   final List<_PlanItem> items;
@@ -251,66 +541,97 @@ class _PlanItem {
   }
 
   /// Day 섹션 + 아이템
-  class _DaySection extends StatelessWidget {
-    const _DaySection({required this.day, required this.items, this.subtitle});
-    final int day;
-    final List<_PlanItem> items;
-    final String? subtitle;
+class _DaySection extends StatelessWidget {
+  const _DaySection({
+    required this.day,
+    required this.items,
+    required this.editing,     
+    this.subtitle,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
-    @override
-    Widget build(BuildContext context) {
-      return Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text('Day $day', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                  const SizedBox(width: 8),
-                  if (subtitle != null)
-                    Expanded(
-                      child: Text(
-                        subtitle!,
-                        style: TextStyle(color: Colors.grey[600]),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+  final int day;
+  final List<_PlanItem> items;
+  final bool editing;          
+  final String? subtitle;
+  final void Function(int itemIndex) onEdit;
+  final void Function(int itemIndex) onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Day $day', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                const SizedBox(width: 8),
+                if (subtitle != null)
+                  Expanded(
+                    child: Text(
+                      subtitle!,
+                      style: TextStyle(color: Colors.grey[600]),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ...items.map((e) => _PlanTile(item: e)),
-            ],
-          ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...List.generate(items.length, (i) => _PlanTile(
+                  item: items[i],
+                  editing: editing,          
+                  onTap: () => onEdit(i),     
+                  onDelete: () => onDelete(i),
+                )),
+          ],
         ),
-      );
-    }
+      ),
+    );
   }
+}
 
-  class _PlanTile extends StatelessWidget {
-    const _PlanTile({required this.item});
-    final _PlanItem item;
+class _PlanTile extends StatelessWidget {
+  const _PlanTile({
+    required this.item,
+    required this.editing,
+    required this.onTap,
+    required this.onDelete,
+  });
 
-    @override
-    Widget build(BuildContext context) {
-      return ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        leading: SizedBox(
-          width: 64,
-          child: Text(item.time, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ),
-        title: Text(item.place, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-        subtitle: item.memo.isNotEmpty
-            ? Text(item.memo, style: TextStyle(color: Colors.grey[700]))
-            : null,
-        trailing: const Icon(Icons.chevron_right, size: 18),
-        onTap: () {
-          // TODO: 필요하면 상세 보기/지도 이동
-        },
-      );
-    }
+  final _PlanItem item;
+  final bool editing;        
+  final VoidCallback onTap;  
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: SizedBox(
+        width: 64,
+        child: Text(item.time, style: const TextStyle(fontWeight: FontWeight.w600)),
+      ),
+      title: Text(item.place, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+      subtitle: item.memo.isNotEmpty ? Text(item.memo, style: TextStyle(color: Colors.grey[700])) : null,
+
+      trailing: editing
+        ? IconButton(
+            icon: const Icon(Icons.delete_outline),
+            iconSize: 26,
+            color: Theme.of(context).colorScheme.error, // 휴지통 빨강
+            onPressed: onDelete,
+          )
+        : null,
+
+      // 편집모드일 때만 탭으로 편집 시트 열림, 아니면 무동작(또는 지도 이동 등)
+      onTap: editing ? onTap : null,
+    );
   }
+}

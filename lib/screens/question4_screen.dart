@@ -17,7 +17,7 @@ class _Question4ScreenState extends State<Question4Screen> {
   String? selectedTheme;
   bool _loading = false;
 
-  final List<String> themes = ['자연', '쇼핑', '먹방', '역사', '휴식'];
+  final List<String> themes = ['힐링', '관광', '쇼핑', '식도락', '액티비티', '역사 · 문화 탐방', '포토 스팟', '로맨틱'];
 
 
   Future<void> _saveThemeAndNext() async {
