@@ -8,6 +8,8 @@ import '../services/auth_storage.dart';
 import '../env.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
+import 'my_schedules_screen.dart';
+import 'schedule_detail_screen.dart'; // ✅ ScheduleDetailScreen import 추가
 
 class ProfileUserScreen extends StatefulWidget {
   const ProfileUserScreen({super.key});
@@ -101,7 +103,7 @@ Future<void> _logout() async {
           child: const Text('취소'),
         ),
         ElevatedButton(
-          onPressed: () => Navigator.pop(dialogCtx, true),  // ← dialogCtx 사용
+          onPressed: () => Navigator.pop(dialogCtx, true), // ← dialogCtx 사용
           child: const Text('로그아웃'),
         ),
       ],
@@ -130,6 +132,56 @@ Future<void> _logout() async {
       ?.showSnackBar(const SnackBar(content: Text('로그아웃되었습니다.')));
 }
 
+  // ✅ 추가: 예정된 일정 중 가장 최근 일정을 가져와서 상세 화면으로 이동
+  Future<void> _navigateToLatestSchedule() async {
+    // 1) 로딩 상태 표시
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('가장 가까운 예정된 일정을 불러오는 중입니다...'),
+      duration: Duration(seconds: 2),
+    ));
+
+    // 2) 백엔드 API 호출
+    try {
+      final token = await AuthStorage.getToken();
+      final res = await http.get(
+        Uri.parse('$baseUrl/schedules/me'),
+        headers: {
+          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final List<dynamic> schedules = jsonDecode(res.body);
+        if (schedules.isNotEmpty) {
+          final latestSchedule = schedules[0]; // 백엔드에서 정렬되어 온 첫 번째 일정
+          final scheduleId = latestSchedule['schedule_id'];
+          
+          // 3) 일정 상세 화면으로 이동
+          if (!mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ScheduleDetailScreen(scheduleId: scheduleId),
+            ),
+          );
+        } else {
+          // 일정이 없을 경우 메시지 표시
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('예정된 일정이 없습니다.'),
+            duration: Duration(seconds: 2),
+          ));
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('일정 로드 실패: ${res.statusCode}'),
+        ));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('네트워크 오류: $e'),
+      ));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +208,7 @@ Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
 
   // 로그인 후 UI
  Widget _buildLoggedIn() {
-  final name  = (_me?['user_name'] ?? _me?['name'] ?? '사용자').toString();
+  final name = (_me?['user_name'] ?? _me?['name'] ?? '사용자').toString();
   final email = (_me?['email'] ?? '-').toString();
 
   return ListView(
@@ -182,8 +234,20 @@ Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
       const Divider(),
 
       // 메뉴 리스트
-      _menuItem(Icons.event_available, '예정된 일정', onTap: () { /* TODO */ }),
-      _menuItem(Icons.history, '지난 일정 관리', onTap: () { /* TODO */ }),
+      _menuItem(Icons.event_available, '예정된 일정', onTap: _navigateToLatestSchedule),
+      _menuItem(
+        Icons.history,
+        '지난 일정 관리',
+        onTap: () {
+          // TODO: 내 일정 화면으로 이동
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const MySchedulesScreen(),
+            ),
+          );
+        },
+      ),
       _menuItem(Icons.train, '저장한 대중교통 팁', onTap: () { /* TODO */ }),
       _menuItem(Icons.rate_review, '작성한 글', onTap: () { /* TODO */ }),
 
@@ -201,7 +265,7 @@ Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
     ],
   );
 }
-  
+
   // 게스트 UI
   Widget _buildGuest() {
     return Center(
