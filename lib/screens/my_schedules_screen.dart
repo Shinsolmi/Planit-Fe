@@ -162,7 +162,6 @@ class _MySchedulesScreenState extends State<MySchedulesScreen> {
                                 subtitle: Text(subtitleLine),
                                 trailing: IconButton(
                                   icon: const Icon(Icons.delete_outline),
-                                  color: Theme.of(context).colorScheme.error,
                                   tooltip: '삭제',
                                   onPressed: () => _deleteSchedule(s.id, title: s.title),
                                 ),

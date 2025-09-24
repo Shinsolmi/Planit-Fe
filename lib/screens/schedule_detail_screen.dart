@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:planit/env.dart';
 import 'package:planit/services/auth_storage.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class ScheduleDetailScreen extends StatefulWidget {
   const ScheduleDetailScreen({
@@ -24,81 +25,158 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
   bool _loading = true;
   bool _editingMode = false;
   bool _changed = false;
+  bool _webReady = false;   // /map 로드 완료
+  bool _dataReady = false;  // _data 로드 완료
+  bool _mapReady = false;
+  late final WebViewController _mapCtrl;
 
   void _toggleEditingMode() {
     setState(() => _editingMode = !_editingMode);
     _snack(_editingMode ? '편집 모드: 수정할 장소를 탭하세요' : '편집 모드 종료');
   }
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.data != null) {
-      _data = widget.data;
-      _loading = false;
-    } else {
-      _loadById();
-    }
+@override
+void initState() {
+  super.initState();
+
+  _webReady  = false;
+  _dataReady = widget.data != null; // data를 넘겨받았다면 true
+  _mapCtrl = WebViewController()
+    ..setJavaScriptMode(JavaScriptMode.unrestricted)
+    ..setNavigationDelegate(
+      NavigationDelegate(
+        onPageStarted: (_) {
+          _webReady = false; // ✨ 새 페이지 시작마다 리셋
+        },
+        onPageFinished: (_) async {
+          _webReady = true;
+          await _tryInject(); // 준비가 되면 주입 시도
+        },
+      ),
+    );
+
+  // ✨ 캐시버스터 추가
+  final ts  = DateTime.now().millisecondsSinceEpoch;
+  final sep = mapPagePath.contains('?') ? '&' : '?';
+  _mapCtrl.loadRequest(Uri.parse('$webBaseUrl$mapPagePath${sep}v=$ts'));
+
+  if (widget.data != null) {
+    _data = widget.data;
+    _loading = false;
+    _dataReady = true;
+    _tryInject(); // 혹시 이미 웹이 준비됐으면 즉시 시도
+  } else {
+    _loadById();  // 로딩 끝나면 _dataReady=true로 세팅해주기 (아래 참고)
   }
+}
 
-  Future<void> _loadById() async {
-    if (!mounted) return;
-    setState(() => _loading = true);
+Future<void> _loadById() async {
+  if (!mounted) return;
+  setState(() => _loading = true);
 
-    try {
-      final id = widget.scheduleId;
-      if (id == null) {
-        debugPrint('[DETAIL] scheduleId=null');
-        setState(() => _data = null);
-        return;
-      }
+  try {
+    final id = widget.scheduleId;
+    if (id == null) {
+      debugPrint('[DETAIL] scheduleId=null');
+      setState(() {
+        _data = null;
+        _loading = false;
+        _dataReady = false;
+      });
+      return;
+    }
 
-      final jwt = await AuthStorage.getToken();
-      final uri = Uri.parse('$baseUrl/schedules/$id');
+    final jwt = await AuthStorage.getToken();
+    final uri = Uri.parse('$baseUrl/schedules/$id');
 
-      final res = await http
-          .get(
-            uri,
-            headers: {
-              if (jwt != null && jwt.isNotEmpty) 'Authorization': 'Bearer $jwt',
-            },
-          )
-          .timeout(const Duration(seconds: 12));
+    final response = await http
+        .get(
+          uri,
+          headers: {
+            if (jwt != null && jwt.isNotEmpty) 'Authorization': 'Bearer $jwt',
+          },
+        )
+        .timeout(const Duration(seconds: 12));
 
-      debugPrint('GET $uri -> ${res.statusCode}');
-      debugPrint(res.body);
+    debugPrint('GET $uri -> ${response.statusCode}');
+    // debugPrint(response.body);
 
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        final map = jsonDecode(res.body) as Map<String, dynamic>;
-        if (!mounted) return;
-        setState(() => _data = map);
-      } else if (res.statusCode == 401 || res.statusCode == 403) {
-        // 인증 문제 → 로그인 화면 등으로 유도
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('로그인이 필요합니다. 다시 로그인해주세요.')),
-        );
-        // Navigator.pushReplacementNamed(context, '/login'); // 앱 정책에 맞게
-        setState(() => _data = null);
-      } else {
-        if (!mounted) return;
-        setState(() => _data = null);
-        final bodyShort = res.body.length > 200 ? '${res.body.substring(0, 200)}...' : res.body;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('상세 실패: ${res.statusCode} $bodyShort')),
-        );
-      }
-    } catch (e) {
-      debugPrint('[DETAIL] error: $e');
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final map = jsonDecode(response.body) as Map<String, dynamic>;
       if (!mounted) return;
-      setState(() => _data = null);
+      setState(() {
+        _data = map;
+        _loading = false;
+        _dataReady = true; // ✅ 중요
+      });
+      await _tryInject();   // ✅ 중요: 웹뷰 준비됐다면 지도에 주입
+    } else {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _dataReady = false;
+      });
+      final bodyShort = response.body.length > 200
+          ? '${response.body.substring(0, 200)}...'
+          : response.body;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('네트워크 오류: $e')),
+        SnackBar(content: Text('상세 실패: ${response.statusCode} $bodyShort')),
       );
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
+  } catch (e) {
+    debugPrint('[DETAIL] error: $e');
+    if (!mounted) return;
+    setState(() {
+      _data = null;
+      _loading = false;
+      _dataReady = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('네트워크 오류: $e')),
+    );
   }
+}
+
+Future<void> _tryInject() async {
+  if (!_webReady || !_dataReady) return;
+
+  // JS 준비(google & setSchedules) 폴링: 최대 5초
+  bool ready = false;
+  for (int i = 0; i < 50; i++) {
+    final ok = await _mapCtrl.runJavaScriptReturningResult(
+      "typeof google!=='undefined' && !!google.maps && typeof window.setSchedules==='function'"
+    );
+    if ('$ok' == 'true') { ready = true; break; }
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+  if (!ready) return;
+
+  // (선택) 안전 리셋 한번
+  await _mapCtrl.runJavaScript("window.__reset && window.__reset();");
+
+  // 힌트 먼저
+  final schedule = (_data?['schedule'] as Map<String, dynamic>?) ?? {};
+  final hint = (schedule['destination'] ?? schedule['title'] ?? '').toString();
+  await _mapCtrl.runJavaScript(
+    "window.setMapContext && window.setMapContext({ hint: ${jsonEncode(hint)}, radiusKm: 60 });"
+  );
+
+  // 상세 데이터 전달
+  final parsed = _parseDetails(_data?['details']);
+  final detailsJson = jsonEncode(parsed.map((d)=> {
+    'day': d.day,
+    'plan': d.items.map((it)=> {
+      'place': it.place,
+      'time' : it.time,
+      'memo' : it.memo,
+      // lat/lng 필드가 있다면 여기서 같이 전달 가능
+    }).toList(),
+  }).toList());
+
+  await _mapCtrl.runJavaScript(
+    "window.setSchedules && window.setSchedules($detailsJson);"
+  );
+}
 
   Future<void> _saveAllFromParsed(
     List<_DayPlan> parsed, {
@@ -148,7 +226,26 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
       if (!mounted) return; // 응답 후 UI 접근 전 가드
       if (res.statusCode >= 200 && res.statusCode < 300) {
         _changed = true;
-        await _loadById();          // 저장 후 즉시 최신 데이터 다시 가져오기
+
+        // 1) 서버가 수정된 스케줄 JSON을 바로 돌려주는 경우(있으면 추가 GET 생략)
+        bool applied = false;
+        try {
+          final body = jsonDecode(res.body);
+          if (body is Map<String, dynamic> && body.containsKey('schedule')) {
+            setState(() {
+              _data = body;
+              _dataReady = true;   // ✅ 주입 조건 충족
+            });
+            await _tryInject();     // ✅ 지도 갱신(마커/경로 포함)
+            applied = true;
+          }
+        } catch (_) {/* JSON 아님 or 형태 다름 → fallback으로 GET */}
+
+        // 2) 응답에 데이터가 없으면 다시 GET으로 최신화 (이 안에서 _dataReady=true와 _tryInject()가 호출되게 해둔 상태여야 함)
+        if (!applied) {
+          await _loadById();        // ✅ 성공 시 _dataReady=true / await _tryInject() 호출
+        }
+
         if (!mounted) return;
         _snack('저장 완료');
       } else {
@@ -387,7 +484,7 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
           ? const Center(child: Text('등록된 상세 일정이 없습니다.'))
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              itemCount: parsed.length + 1,
+              itemCount: parsed.length + 2,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 if (index == 0) {
@@ -398,15 +495,24 @@ class _ScheduleDetailScreenState extends State<ScheduleDetailScreen> {
                     totalDays: parsed.length,
                   );
                 }
-                final dayPlan = parsed[index - 1];
+                if (index == 1) {
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      height: 280, // 원하는 높이
+                      child: WebViewWidget(controller: _mapCtrl), // ← 너의 WebView
+                    ),
+                  );
+                }
+                final dayPlan = parsed[index - 2]; // ← 오프셋이 2로 바뀜
                 return _DaySection(
                   day: dayPlan.day,
                   items: dayPlan.items,
-                  editing: _editingMode, 
-                  onEdit: (itemIndex) => _openEditSheet(dayIndex: index - 1, itemIndex: itemIndex),
-                  onDelete: (itemIndex) => _confirmDelete(dayIndex: index - 1, itemIndex: itemIndex),
+                  editing: _editingMode,
+                  onEdit: (i) => _openEditSheet(dayIndex: index - 2, itemIndex: i),
+                  onDelete: (i) => _confirmDelete(dayIndex: index - 2, itemIndex: i),
                 );
-              },
+              }
             ),
     );
   }
