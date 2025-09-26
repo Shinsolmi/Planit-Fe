@@ -132,7 +132,7 @@ Future<void> _logout() async {
       ?.showSnackBar(const SnackBar(content: Text('로그아웃되었습니다.')));
 }
 
-  // ✅ 추가: 예정된 일정 중 가장 최근 일정을 가져와서 상세 화면으로 이동
+  // ✅ 수정: 예정된 일정 중 가장 최근 일정을 가져와서 상세 화면으로 이동
   Future<void> _navigateToLatestSchedule() async {
     // 1) 로딩 상태 표시
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -140,7 +140,7 @@ Future<void> _logout() async {
       duration: Duration(seconds: 2),
     ));
 
-    // 2) 백엔드 API 호출
+    // 2) 백엔드 API 호출 (모든 일정을 가져옴)
     try {
       final token = await AuthStorage.getToken();
       final res = await http.get(
@@ -152,12 +152,36 @@ Future<void> _logout() async {
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
         final List<dynamic> schedules = jsonDecode(res.body);
-        if (schedules.isNotEmpty) {
-          final latestSchedule = schedules[0]; // 백엔드에서 정렬되어 온 첫 번째 일정
+
+        // 3) 예정된 일정 중 가장 가까운 일정 찾기 (프론트엔드에서 처리)
+        final now = DateTime.now().toLocal();
+
+        final upcomingSchedules = schedules.where((s) {
+          final startDateStr = s['startdate']?.toString();
+          if (startDateStr == null) return false;
+          try {
+            final startDate = DateTime.parse(startDateStr).toLocal();
+            // 예정된 일정(현재 또는 미래)만 필터링
+            return startDate.isAfter(now.subtract(const Duration(hours: 24))) || startDate.isAtSameMomentAs(now);
+          } catch (_) {
+            return false;
+          }
+        }).toList();
+        
+        // 시작일이 가장 이른(가장 가까운) 순서로 정렬
+        upcomingSchedules.sort((a, b) {
+          final dateA = DateTime.parse(a['startdate'].toString());
+          final dateB = DateTime.parse(b['startdate'].toString());
+          return dateA.compareTo(dateB);
+        });
+
+        if (upcomingSchedules.isNotEmpty) {
+          final latestSchedule = upcomingSchedules.first; 
           final scheduleId = latestSchedule['schedule_id'];
           
-          // 3) 일정 상세 화면으로 이동
+          // 4) 일정 상세 화면으로 이동
           if (!mounted) return;
+          ScaffoldMessenger.of(context).hideCurrentSnackBar(); // 로딩 스낵바 숨김
           Navigator.push(
             context,
             MaterialPageRoute(
