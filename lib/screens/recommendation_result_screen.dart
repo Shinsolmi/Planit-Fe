@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:planit/screens/schedule_detail_screen.dart';
 import '../env.dart';
 import '../services/auth_storage.dart';
 import 'completion_screen.dart';
@@ -119,11 +120,28 @@ Future<void> _saveToMySchedules() async {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       Map<String, dynamic>? data;
       try { data = jsonDecode(res.body) as Map<String, dynamic>; } catch (_) {}
-      final id = data?['scheduleId'] as int?;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => CompletionScreen(scheduleId: id)),
+  // 서버 응답에서 id 안전하게 뽑기 (여러 형태 대비)
+  final int? id =
+      (data?['scheduleId'] as int?) ??
+      (data?['id'] as int?) ??
+      (data?['schedule'] is Map ? (data!['schedule']['schedule_id'] as int?) : null);
+
+  if (id != null) {
+    // ✅ 바로 상세 화면으로 이동
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => ScheduleDetailScreen(scheduleId: id)),
+      (route) => false, // 또는 route.isFirst
       );
+    } else {
+      // id를 못 찾았는데 전체 데이터가 있으면 그대로 넘기는 방법도 가능
+      // Navigator.pushReplacement(context,
+      //   MaterialPageRoute(builder: (_) => ScheduleDetailScreen(data: data!)),
+      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('저장 성공! (ID를 찾지 못했어요)')),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('저장 실패: ${res.statusCode}  ${res.body}')),
