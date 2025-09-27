@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:planit/widgets/custom_app_bar.dart';
+import 'transport_tip_list_screen.dart'; // ✅ 파일 이름이 소문자 스네이크 케이스인 경우
 
 class TransportSelectionPage extends StatelessWidget {
   const TransportSelectionPage({super.key});
@@ -10,13 +11,18 @@ class TransportSelectionPage extends StatelessWidget {
       appBar: CustomAppBar(),
       body: SafeArea(
         child: ListView(
-          // 필요하면 이 정도만 패딩
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
             const Text('교통수단 선택', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
-            _tile(context, Icons.local_taxi, '택시', onTap: () {/* TODO */}),
-            _tile(context, Icons.directions_bus, '버스', onTap: () {/* TODO */}),
+            _tile(context, Icons.local_taxi, '택시', onTap: () {
+              // ✅ TransportTipListScreen 호출 확인
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TransportTipListScreen(transportType: '택시')),
+              );
+            }),
+            _tile(context, Icons.directions_bus, '버스', onTap: () { /* TODO */ }),
             _tile(context, Icons.subway, '지하철', onTap: () {/* TODO */}),
             _tile(context, Icons.train, '기차', onTap: () {/* TODO */}),
           ],
