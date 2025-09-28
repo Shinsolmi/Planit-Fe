@@ -18,7 +18,7 @@ class _Question3ScreenState extends State<Question3Screen> {
   bool _loading = false;
 
   final List<String> travelTypes = [
-    '혼자', '부모님', '가족', '연인/배우자', '친구', '아이와 함께', '지인', '애완동물', '직장/단체'
+    '혼자', '부모님', '가족', '연인/배우자', '친구', '아이와 함께', '지인', '반려동물', '직장/단체'
   ];
 
   Future<void> _saveCompanionAndNext() async {
