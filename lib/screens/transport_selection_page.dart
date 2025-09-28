@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:planit/widgets/custom_app_bar.dart';
-import 'transport_tip_list_screen.dart'; // ✅ 파일 이름이 소문자 스네이크 케이스인 경우
+import 'transport_tip_list_screen.dart'; 
 
 class TransportSelectionPage extends StatelessWidget {
   const TransportSelectionPage({super.key});
@@ -15,16 +15,38 @@ class TransportSelectionPage extends StatelessWidget {
           children: [
             const Text('교통수단 선택', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
+            
+            // ✅ 택시 (기존 로직 유지)
             _tile(context, Icons.local_taxi, '택시', onTap: () {
-              // ✅ TransportTipListScreen 호출 확인
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const TransportTipListScreen(transportType: '택시')),
               );
             }),
-            _tile(context, Icons.directions_bus, '버스', onTap: () { /* TODO */ }),
-            _tile(context, Icons.subway, '지하철', onTap: () {/* TODO */}),
-            _tile(context, Icons.train, '기차', onTap: () {/* TODO */}),
+            
+            // ✅ 버스 (추가)
+            _tile(context, Icons.directions_bus, '버스', onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TransportTipListScreen(transportType: '버스')),
+              );
+            }),
+            
+            // ✅ 지하철 (추가)
+            _tile(context, Icons.subway, '지하철', onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TransportTipListScreen(transportType: '지하철')),
+              );
+            }),
+            
+            // ✅ 기차 (추가)
+            _tile(context, Icons.train, '기차', onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TransportTipListScreen(transportType: '기차')),
+              );
+            }),
           ],
         ),
       ),
