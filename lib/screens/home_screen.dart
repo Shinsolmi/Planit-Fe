@@ -1,5 +1,4 @@
 // lib/screens/home_screen.dart
-
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -40,6 +39,8 @@ class HomeScreen extends StatelessWidget {
     }
 
     // 2. 무조건 QuestionPage(Q1)으로 이동
+    // 💡 QuestionPage로 이동할 때는 스택을 지우지 않습니다.
+    //    스택 지우기는 홈 버튼에서만 수행되어야 합니다.
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const QuestionPage()),
@@ -49,7 +50,8 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(),
+      // 💡 CustomAppBar의 로고/홈 버튼이 눌렸을 때, Navigator.pushAndRemoveUntil 로직이 실행되어야 합니다.
+      appBar: const CustomAppBar(), 
       backgroundColor: Colors.white,
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -90,7 +92,7 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // '여행 만들기' 버튼 수정: 무조건 Q1으로 이동하는 새 함수 호출
+          // '여행 만들기' 버튼: 무조건 Q1으로 이동하는 새 함수 호출
           _buildActionButton(
             context,
             icon: Icons.create,

@@ -57,29 +57,49 @@ class _RootTabsState extends State<RootTabs> {
   ];
 
 Future<void> _handleTap(int i) async {
-  // 같은 탭 재클릭 시 루트로
+  // 같은 탭을 다시 클릭하면 해당 탭의 첫 페이지로 이동
   if (i == _index) {
     _navKeys[i]!.currentState?.popUntil((r) => r.isFirst);
     return;
   }
 
-  // 여행만들기(로그인 가드)
+  // 홈 탭(i == 0)으로 전환하는 경우, 스택을 초기화하고 즉시 이동
+  if (i == kTabHome) {
+    _navKeys[kTabHome]!.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      (route) => false,
+    );
+    if (mounted) setState(() => _index = i);
+    return;
+  }
+
+  // 여행만들기 탭(i == 1)으로 전환하는 경우
   if (i == kTabCreate) {
     final loggedIn = await AuthStorage.isLoggedIn();
     if (!loggedIn) {
-      // 1) 먼저 여행만들기 탭으로 전환
+      // 로그인 안되어 있으면, 탭 전환 후 로그인 화면 푸시
       if (mounted && _index != kTabCreate) {
         setState(() => _index = kTabCreate);
       }
-      // 2) 그 탭의 중첩 Navigator에 로그인 화면 푸시 (바텀바 유지)
       _navKeys[kTabCreate]!.currentState?.push(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
-      return; // 탭 인덱스 변경 끝
+      return;
     }
+    
+    // 로그인 되어 있으면, 스택을 초기화하고 즉시 이동
+    _navKeys[kTabCreate]!.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => QuestionPage()),
+      (route) => false,
+    );
+    if (mounted) setState(() => _index = i);
+    return;
   }
 
-  if (mounted) setState(() => _index = i);
+  // 그 외 다른 탭으로 전환
+  if (mounted) {
+    setState(() => _index = i);
+  }
 }
 
 
