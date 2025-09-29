@@ -1,11 +1,15 @@
 // lib/screens/home_screen.dart
+
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:planit/screens/my_schedules_screen.dart';
 import 'package:planit/screens/search_page.dart';
 import '../widgets/custom_app_bar.dart';
 import '../services/auth_storage.dart';
 import 'login_screen.dart';
-import 'question_screen.dart';
+import 'question_screen.dart'; // QuestionPage (Q1)
+import '../env.dart'; // baseUrl 사용을 위해 추가
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -16,13 +20,37 @@ class HomeScreen extends StatelessWidget {
     else Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
+  // 👇 서버의 진행 상태를 초기화하고 무조건 Q1으로 이동
+  Future<void> _startNewTrip(BuildContext context) async {
+    final token = await AuthStorage.getToken();
+    
+    if (token != null && token.isNotEmpty) {
+      try {
+        await http.post(
+          Uri.parse('$baseUrl/ai/clear-progress'),
+          headers: {'Authorization': 'Bearer $token'},
+        );
+        debugPrint('AI progress cleared on server.');
+      } catch (e) {
+        debugPrint('Warning: Failed to clear AI progress: $e');
+      }
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const QuestionPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(),
+      appBar: const CustomAppBar(), 
+      backgroundColor: Colors.white,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ✅ 검색창 CSS를 원래대로 복구 (Card 위젯과 Padding 제거)
           TextField(
             decoration: const InputDecoration(
               hintText: '도시, 장소 등을 검색해 보세요',
@@ -33,7 +61,6 @@ class HomeScreen extends StatelessWidget {
             ),
             onSubmitted: (String value) {
               if (value.isNotEmpty) {
-                // ✏️ SearchPage로 이동할 때 검색어(value)를 전달
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => SearchPage(query: value)),
@@ -41,8 +68,10 @@ class HomeScreen extends StatelessWidget {
               }
             },
           ),
-          const SizedBox(height: 8),
-           Text(
+          // ❌ 이전 검색창 Card 위젯을 제거했으므로, 여기서 SizedBox를 조정할 수 있습니다.
+          const SizedBox(height: 8), 
+
+          Text(
             '여행을 시작해 볼까요?',
             style: TextStyle(
               fontSize: 20,
@@ -52,7 +81,7 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // ✅ 버튼을 Card로 감싸고 아이콘/텍스트 스타일 조정
+          // '여행 만들기' 버튼: 무조건 Q1으로 이동하는 함수 호출
           _buildActionButton(
             context,
             icon: Icons.create,
@@ -60,12 +89,11 @@ class HomeScreen extends StatelessWidget {
             color: Colors.blue.shade600,
             onPressed: () => _requireLoginThen(
               context,
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const QuestionPage()),
-              ),
+              () => _startNewTrip(context),
             ),
           ),
+          
+          // '내 일정' 버튼
           _buildActionButton(
             context,
             icon: Icons.event_note,
@@ -88,7 +116,9 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-   Widget _buildActionButton(BuildContext context, {
+  
+  // ✅ _buildActionButton 함수는 유지하여 버튼 스타일을 개선된 상태로 둡니다.
+  Widget _buildActionButton(BuildContext context, {
     required IconData icon,
     required String label,
     required Color color,

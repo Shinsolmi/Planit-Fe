@@ -105,7 +105,15 @@ class TransportTipDetailScreen extends StatelessWidget {
         currentMediaWidget,
         if (caption.isNotEmpty) Padding(
           padding: const EdgeInsets.only(top: 8.0, left: 4.0),
-          child: Text(caption, style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey[600])),
+          child: Text(
+            caption, 
+            style: const TextStyle(
+              // ✅ 스타일 수정: 검은색, 일반 글씨체(이탤릭체 제거)
+              color: Colors.black, 
+              fontStyle: FontStyle.normal,
+              fontSize: 14, // 캡션 크기 조정
+            ),
+          ),
         ),
       ];
     }).toList();
@@ -117,10 +125,7 @@ class TransportTipDetailScreen extends StatelessWidget {
     final String content = tip['content'] ?? '내용 없음';
     final String details = tip['details'] ?? ''; 
     
-    // ✅ tip['media']를 안전하게 List로 가져옵니다. (백엔드에서 이 구조로 데이터를 보내야 함)
     final List<dynamic> mediaList = tip['media'] is List ? tip['media'] : [];
-    
-    // 미디어 목록이 비어있지 않은지 확인
     final bool hasMedia = mediaList.isNotEmpty;
 
     return Scaffold(
@@ -146,12 +151,13 @@ class TransportTipDetailScreen extends StatelessWidget {
             // 3. 미디어 위젯 목록 (동영상/이미지)
             ..._buildMediaList(context, mediaList),
 
-            // 4. 상세 정보 (details)
+            // 4. 상세 정보 (details) 섹션
             if (details.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              const Text('상세 정보:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(details, style: const TextStyle(fontSize: 15)),
+              // const SizedBox(height: 20), // 캡션과 상세정보 간격 유지를 위해 제거
+              // const Text('상세 정보:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // ❌ 상세 정보 제목 제거
+              const SizedBox(height: 8), 
+              // 텍스트 간의 공간이 부족할 수 있으므로, 간격 조정 (필요 시 SizedBox(height: 16))
+              Text(details, style: const TextStyle(fontSize: 16)), // 본문과 같은 크기로 조정
             ],
           ],
         ),

@@ -41,7 +41,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       titleSpacing: 16,          // ← 좌측 여백
       backgroundColor: Colors.white,
       foregroundColor: Colors.blue,
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      title: GestureDetector(
+        onTap: () => _goHomeTabOrRoot(context),
+        child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      ),
       actions: actions,
     );
   }
