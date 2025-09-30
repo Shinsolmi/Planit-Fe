@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart'; 
 import '../widgets/custom_app_bar.dart';
-import '../env.dart'; // baseUrl 사용을 위해 env 임포트 가정
+import '../env.dart'; 
 
 class TransportTipDetailScreen extends StatelessWidget {
   final Map<String, dynamic> tip;
@@ -16,7 +16,6 @@ class TransportTipDetailScreen extends StatelessWidget {
   // 외부 URL 연결 기능
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
-    // 외부 브라우저로 실행
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       throw Exception('Could not launch $url');
     }
@@ -35,9 +34,8 @@ class TransportTipDetailScreen extends StatelessWidget {
       
       Widget currentMediaWidget;
 
-      // 1. 이미지 처리 로직
+      // 이미지 처리 로직
       if (mediaType == 'image') {
-        // 로컬 경로(uploads/...)인 경우 baseUrl과 조합
         final imgUrl = mediaUrl.startsWith('http') ? mediaUrl : '$baseUrl/$mediaUrl';
         
         currentMediaWidget = ClipRRect(
@@ -54,7 +52,7 @@ class TransportTipDetailScreen extends StatelessWidget {
           ),
         );
       } 
-      // 2. 동영상 (video) 처리 로직: 외부 연결
+      // 동영상 (video) 처리 로직: 외부 연결
       else if (mediaType == 'video') {
         currentMediaWidget = InkWell(
           onTap: () => _launchUrl(mediaUrl),
@@ -111,13 +109,45 @@ class TransportTipDetailScreen extends StatelessWidget {
               // ✅ 스타일 수정: 검은색, 일반 글씨체(이탤릭체 제거)
               color: Colors.black, 
               fontStyle: FontStyle.normal,
-              fontSize: 14, // 캡션 크기 조정
+              fontSize: 14,
             ),
           ),
         ),
       ];
     }).toList();
   }
+
+  // ✅ 새로운 함수: content를 줄바꿈하고 목록 위젯으로 변환
+  List<Widget> _buildContentList(String content) {
+    if (content.isEmpty) return [const Text('내용 없음')];
+
+    // 줄바꿈 문자로 문자열을 분리하고, 공백 줄을 제거
+    final List<String> lines = content
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+
+    return lines.map((line) {
+      // 각 줄을 블릿 포인트와 함께 Row로 표시
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('• ', style: TextStyle(fontSize: 16, height: 1.5)), // 블릿 포인트
+            Expanded(
+              child: Text(
+                line,
+                style: const TextStyle(fontSize: 16, height: 1.5),
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -142,8 +172,8 @@ class TransportTipDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // 2. 본문 내용 (content)
-            Text(content, style: const TextStyle(fontSize: 16)),
+            // 2. 본문 내용 (content) - 단일 Text에서 목록 위젯으로 대체
+            ..._buildContentList(content),
 
             // 미디어가 있을 경우에만 간격 추가
             if (hasMedia) const SizedBox(height: 20),
@@ -151,13 +181,11 @@ class TransportTipDetailScreen extends StatelessWidget {
             // 3. 미디어 위젯 목록 (동영상/이미지)
             ..._buildMediaList(context, mediaList),
 
-            // 4. 상세 정보 (details) 섹션
+            // 4. 상세 정보 (details)
             if (details.isNotEmpty) ...[
-              // const SizedBox(height: 20), // 캡션과 상세정보 간격 유지를 위해 제거
-              // const Text('상세 정보:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), // ❌ 상세 정보 제목 제거
-              const SizedBox(height: 8), 
-              // 텍스트 간의 공간이 부족할 수 있으므로, 간격 조정 (필요 시 SizedBox(height: 16))
-              Text(details, style: const TextStyle(fontSize: 16)), // 본문과 같은 크기로 조정
+              // ❌ '상세 정보:' 제목을 제거했습니다.
+              const SizedBox(height: 16), // 미디어와 상세 정보 텍스트 간의 간격
+              Text(details, style: const TextStyle(fontSize: 15)),
             ],
           ],
         ),
