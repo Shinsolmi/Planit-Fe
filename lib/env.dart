@@ -4,6 +4,7 @@ const String _envBase = String.fromEnvironment('BASE_URL', defaultValue: '');
 
 
 const bool useTunnel =true; //false면 로컬
+
 const _tunnel = 'https://8fd7da4dfe63.ngrok-free.app';
 
 const _local  = 'http://10.0.2.2:3000';
