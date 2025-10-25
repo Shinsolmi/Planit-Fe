@@ -11,8 +11,52 @@ import 'login_screen.dart';
 import 'question_screen.dart'; // QuestionPage (Q1)
 import '../env.dart'; // baseUrl 사용을 위해 추가
 
-class HomeScreen extends StatelessWidget {
+// ✅ StatefulWidget으로 변경 (데이터 로드를 위해)
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  Map<String, dynamic>? _summaryData;
+  bool _isLoadingSummary = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSummaryData();
+  }
+
+  // ✅ 커뮤니티 요약 데이터 로드 함수
+  Future<void> _loadSummaryData() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/main/summary'));
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        if (!mounted) return;
+        setState(() {
+          _summaryData = jsonDecode(res.body) as Map<String, dynamic>;
+          _isLoadingSummary = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _isLoadingSummary = false;
+          _summaryData = {'popularPosts': []}; 
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingSummary = false;
+        _summaryData = {'popularPosts': []};
+        debugPrint('Summary network error: $e');
+      });
+    }
+  }
+
 
   Future<void> _requireLoginThen(BuildContext context, VoidCallback action) async {
     final ok = await AuthStorage.isLoggedIn();
@@ -42,6 +86,82 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  // ✅ 커뮤니티 요약 위젯 빌드
+  Widget _buildCommunitySummary() {
+    final List<dynamic> posts = _summaryData?['popularPosts'] ?? [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '행사/핫플 정보를 확인하고 싶으신가요?	✈️',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text('여러정보와 후기를 확인해보세요.', style: TextStyle(color: Colors.grey[700])),
+        const SizedBox(height: 16),
+
+        _isLoadingSummary
+            ? const Center(child: CircularProgressIndicator())
+            : posts.isEmpty
+                ? Center(child: Text('인기 게시글이 없습니다.'))
+                : Column(
+                    children: posts.take(5).map((post) {
+                      final title = post['post_title'] ?? '제목 없음';
+                      final likes = post['like_count']?.toString() ?? '0';
+                      final createdAt = post['created_at'] ?? ''; 
+                      final userName = post['user_name'] ?? '익명';
+                      
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Row(
+                            children: [
+                              Text(userName, style: TextStyle(color: Colors.blue.shade600, fontSize: 12)),
+                              const SizedBox(width: 8),
+                              Text(createdAt, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                              const SizedBox(width: 8),
+                              Icon(Icons.favorite, size: 14, color: Colors.red),
+                              const SizedBox(width: 4),
+                              Text(likes, style: TextStyle(color: Colors.red, fontSize: 12)),
+                            ],
+                          ),
+                          trailing: Container(
+                            width: 60,
+                            height: 60,
+                            color: Colors.grey[200], 
+                            child: const Center(
+                              child: Icon(Icons.image_outlined, color: Colors.grey),
+                            ),
+                          ),
+                          onTap: () {
+                            // TODO: 상세 커뮤니티 게시글 화면으로 이동
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
+        
+        const SizedBox(height: 16),
+        Center(
+          child: OutlinedButton(
+            onPressed: () {
+              // TODO: 커뮤니티 메인 화면으로 이동
+            },
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+              side: BorderSide(color: Colors.blueGrey.shade300),
+            ),
+            child: Text('커뮤니티 보러가기', style: TextStyle(color: Colors.blueGrey.shade700)),
+          ),
+        ),
+      ],
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,7 +170,7 @@ class HomeScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ✅ 검색창 CSS를 원래대로 복구 (Card 위젯과 Padding 제거)
+          // 1. 검색창
           TextField(
             decoration: const InputDecoration(
               hintText: '도시, 장소 등을 검색해 보세요',
@@ -68,9 +188,10 @@ class HomeScreen extends StatelessWidget {
               }
             },
           ),
-          // ❌ 이전 검색창 Card 위젯을 제거했으므로, 여기서 SizedBox를 조정할 수 있습니다.
-          const SizedBox(height: 8), 
+          
+          const SizedBox(height: 8), // 검색창과 문구 사이 간격 (원래대로)
 
+          // 2. 여행 시작 문구
           Text(
             '여행을 시작해 볼까요?',
             style: TextStyle(
@@ -81,7 +202,7 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // '여행 만들기' 버튼: 무조건 Q1으로 이동하는 함수 호출
+          // 3. '여행 만들기' 버튼
           _buildActionButton(
             context,
             icon: Icons.create,
@@ -93,7 +214,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           
-          // '내 일정' 버튼
+          // 4. '내 일정' 버튼
           _buildActionButton(
             context,
             icon: Icons.event_note,
@@ -111,13 +232,18 @@ class HomeScreen extends StatelessWidget {
               },
             ),
           ),
-          const SizedBox(height: 24),
+          
+          // ✅ 5. 커뮤니티 요약 섹션 (내 일정 버튼 아래로 이동)
+          const SizedBox(height: 24), // 버튼과 섹션 사이 간격
+          const Divider(height: 40), 
+          _buildCommunitySummary(),
+
+          const SizedBox(height: 24), // 최종 하단 간격
         ],
       ),
     );
   }
   
-  // ✅ _buildActionButton 함수는 유지하여 버튼 스타일을 개선된 상태로 둡니다.
   Widget _buildActionButton(BuildContext context, {
     required IconData icon,
     required String label,
