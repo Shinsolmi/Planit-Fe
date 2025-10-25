@@ -10,8 +10,10 @@ import '../services/auth_storage.dart';
 import 'login_screen.dart';
 import 'question_screen.dart'; // QuestionPage (Q1)
 import '../env.dart'; // baseUrl 사용을 위해 추가
+import 'CommunityScreen.dart';
+import 'post_detail_screen.dart'; // PostDetailScreen import 추가 (좋아요 갱신 필요)
 
-// ✅ StatefulWidget으로 변경 (데이터 로드를 위해)
+// ✅ StatefulWidget으로 변경
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -20,36 +22,66 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  Map<String, dynamic>? _summaryData;
+  Map<String, dynamic>? _summaryData; // ✅ Map 타입 유지
   bool _isLoadingSummary = true;
+  
+  // ✅ 검색 컨트롤러 추가
+  final TextEditingController _searchController = TextEditingController();
+
+  // ✅ 글쓴 시간 포맷 함수 (YYYY.MM.DD 형식으로 변환)
+  String _formatDateForPostList(dynamic dateStr) {
+    if (dateStr == null) return '';
+    final s = dateStr.toString();
+    try {
+        final d = DateTime.parse(s).toLocal();
+        return '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}'; 
+    } catch (_) {
+        return s.length > 10 ? s.substring(0, 10) : s; // Fallback
+    }
+  }
+
 
   @override
   void initState() {
     super.initState();
-    _loadSummaryData();
+    _loadSummaryData(); // 1. 초기 데이터 로드
   }
 
-  // ✅ 커뮤니티 요약 데이터 로드 함수
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // ✅ 커뮤니티 요약 데이터 로드 함수 (로딩 인디케이터 문제 해결)
   Future<void> _loadSummaryData() async {
+    if (!mounted) return;
+    setState(() => _isLoadingSummary = true);
     try {
-      final res = await http.get(Uri.parse('$baseUrl/main/summary'));
+      final url = Uri.parse('$baseUrl/main/summary');
+      final res = await http.get(url);
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
+        final data = jsonDecode(res.body);
         if (!mounted) return;
         setState(() {
-          _summaryData = jsonDecode(res.body) as Map<String, dynamic>;
+          // ⭐️ 안전한 데이터 저장: Map 형태로 들어오지 않거나 오류가 있어도 기본값으로 처리 후 로딩 종료
+          if (data is Map<String, dynamic>) {
+            _summaryData = data; 
+          } else {
+            _summaryData = {'popularPosts': []};
+          }
           _isLoadingSummary = false;
         });
       } else {
-        if (!mounted) return;
-        setState(() {
+        if (mounted) setState(() {
           _isLoadingSummary = false;
-          _summaryData = {'popularPosts': []}; 
+          _summaryData = {'popularPosts': []};
+          debugPrint('Summary load failed: ${res.statusCode}');
         });
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
+      if (mounted) setState(() {
         _isLoadingSummary = false;
         _summaryData = {'popularPosts': []};
         debugPrint('Summary network error: $e');
@@ -86,31 +118,51 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ✅ 커뮤니티 요약 위젯 빌드
+  // ✅ 상세 페이지 이동 후 목록 갱신 로직 (좋아요 반영 핵심)
+  Future<void> _navigateToPostDetail(int postId) async {
+    // 상세 페이지로 이동하며, 반환되는 결과(true/false)를 기다립니다.
+    final bool? needsRefresh = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => PostDetailScreen(postId: postId)),
+    );
+
+    // ✅ PostDetailScreen에서 true(상태 변경됨)를 반환했을 경우 목록 새로고침
+    if (needsRefresh == true) {
+      _loadSummaryData(); // ⭐️ 목록 데이터를 다시 불러와서 좋아요 수를 갱신합니다.
+    }
+  }
+
+
+  // ✅ 커뮤니티 요약 위젯 빌드 (작성자 이름 및 시간 표시 로직 통합)
   Widget _buildCommunitySummary() {
-    final List<dynamic> posts = _summaryData?['popularPosts'] ?? [];
+    // ⭐️ 안전한 데이터 추출
+    final List<dynamic> posts = (_summaryData is Map && _summaryData!.containsKey('popularPosts')) 
+        ? _summaryData!['popularPosts'] as List<dynamic>
+        : [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '행사/핫플 정보를 확인하고 싶으신가요?	✈️',
+          '기억하고 싶은 여행이 있으신가요? ✈️', 
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
-        Text('여러정보와 후기를 확인해보세요.', style: TextStyle(color: Colors.grey[700])),
+        Text('사진과 함께 후기를 저장해보세요.', style: TextStyle(color: Colors.grey[700])),
         const SizedBox(height: 16),
 
         _isLoadingSummary
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator()) // ⬅️ 로딩 인디케이터 표시
             : posts.isEmpty
                 ? Center(child: Text('인기 게시글이 없습니다.'))
                 : Column(
                     children: posts.take(5).map((post) {
+                      final postId = post['post_id'] as int?;
                       final title = post['post_title'] ?? '제목 없음';
-                      final likes = post['like_count']?.toString() ?? '0';
-                      final createdAt = post['created_at'] ?? ''; 
-                      final userName = post['user_name'] ?? '익명';
+                      final likes = post['like_count']?.toString() ?? '0'; // ✅ 좋아요 수 반영
+                      final createdAt = post['created_at'] ?? ''; // ✅ 서버에서 받은 원본 시간
+                      // ✅ 작성자 이름 표시: 'user_name'이 없으면 '익명'을 사용
+                      final userName = post['user_name'] ?? '익명'; 
                       
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
@@ -119,13 +171,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
                           subtitle: Row(
                             children: [
-                              Text(userName, style: TextStyle(color: Colors.blue.shade600, fontSize: 12)),
+                              // ✅ 작성자 이름 표시
+                              Text('작성자: $userName', style: TextStyle(color: Colors.blue.shade600, fontSize: 12)),
                               const SizedBox(width: 8),
-                              Text(createdAt, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                              // ✅ 글쓴 시간 추가
+                              Text(_formatDateForPostList(createdAt), style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                               const SizedBox(width: 8),
                               Icon(Icons.favorite, size: 14, color: Colors.red),
                               const SizedBox(width: 4),
-                              Text(likes, style: TextStyle(color: Colors.red, fontSize: 12)),
+                              Text(likes, style: TextStyle(color: Colors.red, fontSize: 12)), // ✅ 좋아요 수 표시
                             ],
                           ),
                           trailing: Container(
@@ -137,7 +191,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           onTap: () {
-                            // TODO: 상세 커뮤니티 게시글 화면으로 이동
+                            if (postId != null) {
+                               _navigateToPostDetail(postId); // ✅ 상세 이동 및 갱신 로직
+                            }
                           },
                         ),
                       );
@@ -147,8 +203,15 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 16),
         Center(
           child: OutlinedButton(
-            onPressed: () {
-              // TODO: 커뮤니티 메인 화면으로 이동
+            onPressed: () async {
+               final bool? needsRefresh = await Navigator.push<bool>( // ✅ 갱신 신호 받기
+                context,
+                MaterialPageRoute(builder: (_) => const CommunityScreen()), // 커뮤니티 메인 이동
+              );
+              // 커뮤니티 메인에서 돌아올 때 갱신 신호를 받으면 홈 화면 목록 갱신
+              if (needsRefresh == true) {
+                _loadSummaryData(); 
+              }
             },
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
@@ -162,16 +225,54 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
+  // ✅ _buildActionButton 함수 (재사용)
+  Widget _buildActionButton(BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(width: 16),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Icon(Icons.chevron_right, color: Colors.grey[400]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(), 
+      appBar: const CustomAppBar(),
       backgroundColor: Colors.white,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // 1. 검색창
           TextField(
+            controller: _searchController, // 컨트롤러 연결
             decoration: const InputDecoration(
               hintText: '도시, 장소 등을 검색해 보세요',
               prefixIcon: Icon(Icons.search),
@@ -189,7 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           
-          const SizedBox(height: 8), // 검색창과 문구 사이 간격 (원래대로)
+          const SizedBox(height: 8), 
 
           // 2. 여행 시작 문구
           Text(
@@ -233,48 +334,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           
-          // ✅ 5. 커뮤니티 요약 섹션 (내 일정 버튼 아래로 이동)
-          const SizedBox(height: 24), // 버튼과 섹션 사이 간격
-          const Divider(height: 40), 
+          const SizedBox(height: 24),
+          const Divider(height: 40),
+
+          // ✅ 5. 커뮤니티 요약 섹션
           _buildCommunitySummary(),
 
           const SizedBox(height: 24), // 최종 하단 간격
         ],
-      ),
-    );
-  }
-  
-  Widget _buildActionButton(BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(width: 16),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Icon(Icons.chevron_right, color: Colors.grey[400]),
-            ],
-          ),
-        ),
       ),
     );
   }
