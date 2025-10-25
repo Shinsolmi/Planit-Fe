@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   url_launcher: ^6.1.10
-  
+  image_picker: ^1.0.4
      
   webview_flutter: ^4.2.2  # 최신 버전으로 변경될 수 있음
   webview_flutter_android: ^3.9.0 # Android 플랫폼을 위한 패키지  
