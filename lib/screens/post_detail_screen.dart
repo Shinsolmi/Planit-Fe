@@ -1,4 +1,4 @@
-// lib/screens/post_detail_screen.dart (최종 안정화)
+// lib/screens/post_detail_screen.dart (최종 수정)
 
 import 'dart:convert';
 import 'dart:io'; 
@@ -20,34 +20,28 @@ class PostDetailScreen extends StatefulWidget {
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
   Map<String, dynamic>? _postData;
-  List<dynamic> _comments = []; 
-  final _commentController = TextEditingController(); 
+  List<dynamic> _comments = []; // 댓글 목록 저장
+  final _commentController = TextEditingController(); // 댓글 입력 컨트롤러
 
   bool _isLoading = true;
   String? _error;
   
   int _currentImageIndex = 0; 
-  int _likeCount = 0; 
-  bool _isLiked = false; 
-  bool _listNeedsRefresh = false; // ✅ 목록 갱신 플래그
+  int _likeCount = 0; // 좋아요 수
+  bool _isLiked = false; // 현재 사용자의 좋아요 여부
+  bool _listNeedsRefresh = false; // 목록 갱신 플래그
 
-  int? _currentUserId; 
+  int? _currentUserId; // 현재 로그인 유저 ID
   
   // 단일 정의
   void _showSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  // ✅ 댓글 시간 포맷 함수 (MM.DD HH:MM 형식으로 변환)
+  // ✅ 댓글 시간 포맷 함수 (사용하지 않도록 수정)
   String _formatDateForComment(dynamic dateStr) {
-    if (dateStr == null) return '';
-    final s = dateStr.toString();
-    try {
-        final d = DateTime.parse(s).toLocal();
-        return '${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-        return s.length > 10 ? s.substring(0, 10) : s; // Fallback
-    }
+    // 이 함수는 사용하지 않도록 수정하며, 필요하면 다른 곳에서 사용합니다.
+    return ''; 
   }
 
 
@@ -56,7 +50,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     super.initState();
     _fetchPostDetail();
     _fetchComments(); 
-    _fetchCurrentUserId(); 
+    _fetchCurrentUserId(); // 현재 사용자 ID 로드 함수 호출
   }
 
   @override
@@ -113,9 +107,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         setState(() {
           _postData = data;
-          // ✅ 서버 응답의 좋아요 상태로 초기화 (문제 해결 핵심)
-          _likeCount = data['like_count'] ?? 0; // 서버에서 받은 좋아요 수로 초기화
-          _isLiked = data['is_liked'] == true;         // 서버에서 받은 좋아요 상태로 초기화
+          // ✅ 서버 응답의 좋아요 상태로 초기화 
+          _likeCount = data['like_count'] ?? 0; 
+          _isLiked = data['is_liked'] == true;         
           _isLoading = false;
         });
       } else {
@@ -136,6 +130,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   // ✅ 댓글 목록 로드 (유지)
   Future<void> _fetchComments() async {
     try {
+      // ⚠️ 서버에서 user_name을 같이 조인하여 가져와야 합니다. (community.js 확인 필요)
       final uri = Uri.parse('$baseUrl/community/${widget.postId}/comments');
       final res = await http.get(uri);
       
@@ -519,7 +514,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const CircleAvatar(child: Icon(Icons.person, size: 20)),
-                title: Text(comment['user_id'].toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                // ✅ 수정: user_name 필드를 사용 (서버에서 가져왔다고 가정)
+                title: Text(comment['user_name'].toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(comment['content']),
                 trailing: isCommentOwner 
                     ? PopupMenuButton<String>( // ✅ 댓글 소유자에게만 팝업 메뉴 표시
@@ -536,7 +532,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ],
                         icon: const Icon(Icons.more_vert, size: 18),
                       )
-                    : Text(_formatDateForComment(comment['created_at']), style: TextStyle(fontSize: 12, color: Colors.grey)), // ✅ 소유자가 아니면 날짜 표시
+                    : null, // ✅ 소유자가 아니면 아무것도 표시하지 않음 (시간 제거)
               );
             },
           ),
