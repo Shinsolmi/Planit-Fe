@@ -1,4 +1,4 @@
-// lib/screens/community_screen.dart (새로 생성하거나 기존 파일을 대체)
+// lib/screens/community_screen.dart (최종 수정)
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -71,7 +71,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         queryParams['query'] = searchQuery;
       }
       
-      // ✅ 필터링된 user_id 추가
+      // ✅ 필터링된 user_id 추가 (핵심: 마이페이지에서 넘어온 ID)
       if (filterUserId != null) {
           queryParams['user_id'] = filterUserId.toString(); // 서버에 user_id를 쿼리 파라미터로 전달
       }
@@ -177,9 +177,27 @@ class _CommunityScreenState extends State<CommunityScreen> {
                               final String userName = post['user_name'] ?? '익명'; 
                               final int likeCount = post['like_count'] ?? 0;
                               final String createdAt = _formatDateForPostList(post['created_at']); // ✅ 시간 포맷
+                              final String? mediaUrl = post['media_url']; // ✅ 이미지 URL 추출
+
+                              // ✅ 게시글 썸네일 위젯 생성
+                              final Widget leadingWidget = (mediaUrl != null && mediaUrl.isNotEmpty)
+                                    ? SizedBox(
+                                        width: 60, 
+                                        height: 60, 
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(8.0),
+                                          child: Image.network(
+                                            '$baseUrl/$mediaUrl', // 서버 URL과 이미지 경로 조합
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) =>
+                                                const Icon(Icons.image_not_supported, size: 30, color: Colors.grey),
+                                          ),
+                                        ),
+                                      )
+                                    : const SizedBox(width: 24, height: 24); // ✅ 이미지가 없으면 빈 공간만 남기고 아이콘 제거
 
                               return ListTile(
-                                leading: const Icon(Icons.article), 
+                                leading: leadingWidget, // ✅ leading에 이미지 또는 빈 공간 배치
                                 title: Text(post['post_title'] ?? '제목 없음', maxLines: 1, overflow: TextOverflow.ellipsis),
                                 // ✅ 수정: 작성자 이름과 시간, 좋아요 수 표시
                                 subtitle: Text(

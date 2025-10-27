@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 const String _envBase = String.fromEnvironment('BASE_URL', defaultValue: '');
 
 const bool useTunnel =true; //false면 로컬
-const _tunnel = 'https://b2eb202b322a.ngrok-free.app';
+const _tunnel = 'https://46ca8e82acd5.ngrok-free.app';
 
 
 const _local  = 'http://10.0.2.2:3000';

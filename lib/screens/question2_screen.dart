@@ -55,7 +55,7 @@ class _Question2ScreenState extends State<Question2Screen> {
 
   Future<void> _saveDatesAndNext() async {
     if (_start == null || _end == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('출발일과 도착일을 선택해 주세요.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('출발일과 복귀일일을 선택해 주세요.')));
       return;
     }
     final startStr = _fmtYMD(_start!);
@@ -109,7 +109,7 @@ class _Question2ScreenState extends State<Question2Screen> {
   @override
   Widget build(BuildContext context) {
     final startLabel = _start != null ? "출발: ${_fmtYMD(_start!)}" : "출발일 선택";
-    final endLabel = _end != null ? "도착: ${_fmtYMD(_end!)}" : "도착일 선택";
+    final endLabel = _end != null ? "도착: ${_fmtYMD(_end!)}" : "복귀일 선택";
     final desc = (_nights != null && _days != null)
         ? "${_nights}박 ${_days}일"
         : "여행 기간을 선택해 주세요";

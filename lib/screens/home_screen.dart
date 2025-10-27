@@ -11,7 +11,7 @@ import 'login_screen.dart';
 import 'question_screen.dart'; // QuestionPage (Q1)
 import '../env.dart'; // baseUrl 사용을 위해 추가
 import 'CommunityScreen.dart';
-import 'post_detail_screen.dart'; // PostDetailScreen import 추가 (좋아요 갱신 필요)
+import 'post_detail_screen.dart'; // PostDetailScreen import 추가
 
 // ✅ StatefulWidget으로 변경
 class HomeScreen extends StatefulWidget {
@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final s = dateStr.toString();
     try {
         final d = DateTime.parse(s).toLocal();
+        // 홈 화면에서는 간략하게 YYYY.MM.DD 형식만 표시하도록 조정
         return '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}'; 
     } catch (_) {
         return s.length > 10 ? s.substring(0, 10) : s; // Fallback
@@ -159,15 +160,34 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: posts.take(5).map((post) {
                       final postId = post['post_id'] as int?;
                       final title = post['post_title'] ?? '제목 없음';
-                      final likes = post['like_count']?.toString() ?? '0'; // ✅ 좋아요 수 반영
-                      final createdAt = post['created_at'] ?? ''; // ✅ 서버에서 받은 원본 시간
-                      // ✅ 작성자 이름 표시: 'user_name'이 없으면 '익명'을 사용
+                      final likes = post['like_count']?.toString() ?? '0'; 
+                      final createdAt = post['created_at'] ?? ''; 
                       final userName = post['user_name'] ?? '익명'; 
+                      final mediaUrl = post['media_url']; // ✅ 이미지 URL 추출 (서버에서 가져와야 함)
+
+                      // ✅ 게시글 썸네일 위젯 생성: 이미지가 있을 때만 SizedBox에 Image.network를 넣고, 없을 때는 null 반환
+                      final Widget? leadingWidget = (mediaUrl != null && mediaUrl.isNotEmpty)
+                            ? SizedBox(
+                                width: 60, 
+                                height: 60, 
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8.0),
+                                  child: Image.network(
+                                    // ⭐️ 최종 URL 경로 조합: baseUrl + mediaUrl
+                                    '$baseUrl/$mediaUrl', 
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        const Icon(Icons.image_not_supported, size: 30, color: Colors.grey),
+                                  ),
+                                ),
+                              )
+                            : null; // ✅ 이미지가 없을 때는 null을 반환하여 아무것도 표시하지 않음 (기본 아이콘 제거)
                       
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
+                          leading: leadingWidget, // ✅ leading에 이미지 또는 null 배치 (왼쪽 정렬)
                           title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
                           subtitle: Row(
                             children: [
@@ -182,14 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(likes, style: TextStyle(color: Colors.red, fontSize: 12)), // ✅ 좋아요 수 표시
                             ],
                           ),
-                          trailing: Container(
-                            width: 60,
-                            height: 60,
-                            color: Colors.grey[200], 
-                            child: const Center(
-                              child: Icon(Icons.image_outlined, color: Colors.grey),
-                            ),
-                          ),
+                          trailing: post['category'] != null ? Text(post['category'], style: TextStyle(color: Colors.blue.shade600)) : null,
                           onTap: () {
                             if (postId != null) {
                                _navigateToPostDetail(postId); // ✅ 상세 이동 및 갱신 로직
