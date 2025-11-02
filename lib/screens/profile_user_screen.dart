@@ -8,9 +8,10 @@ import '../services/auth_storage.dart';
 import '../env.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
-import 'CommunityScreen.dart'; // ✅ CommunityScreen import 필요
+import 'CommunityScreen.dart'; // CommunityScreen import 필요
 import 'my_schedules_screen.dart'; 
-import 'schedule_detail_screen.dart'; 
+import 'schedule_detail_screen.dart'; // ScheduleDetailScreen import (가정)
+import 'saved_tips_screen.dart'; // ✅ SavedTipsScreen import (오류 해결 필수)
 
 
 class ProfileUserScreen extends StatefulWidget {
@@ -30,6 +31,11 @@ class _ProfileUserScreenState extends State<ProfileUserScreen> {
     super.initState();
     _refresh(); // 로그인 상태 + 프로필 로드
   }
+
+  // ✅ _snack 함수 정의 
+  void _snack(String m) =>
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
 
   Future<void> _refresh() async {
     setState(() {
@@ -52,7 +58,7 @@ class _ProfileUserScreenState extends State<ProfileUserScreen> {
     try {
       final token = await AuthStorage.getToken();
       final res = await http.get(
-        Uri.parse('$baseUrl/users/me'), // 백엔드 스펙에 맞게 필요시 수정
+        Uri.parse('$baseUrl/users/me'), 
         headers: {
           'Content-Type': 'application/json',
           if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
@@ -69,7 +75,6 @@ class _ProfileUserScreenState extends State<ProfileUserScreen> {
           _loading = false;
         });
       } else {
-        // 프로필 실패 시에도 로그인은 true로 간주하고 메시지 출력
         setState(() {
           _loggedIn = true;
           _me = <String, dynamic>{};
@@ -129,10 +134,6 @@ Future<void> _logout() async {
   ScaffoldMessenger.maybeOf(context)
       ?.showSnackBar(const SnackBar(content: Text('로그아웃되었습니다.')));
 }
-
-// ⚠️ _snack 함수 (오류 메시지 처리용)
-void _snack(String m) =>
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
 // ✅ 예정된 일정 상세로 이동 (기존 로직)
 Future<void> _navigateToLatestSchedule() async {
@@ -209,7 +210,6 @@ Future<void> _navigateToLatestSchedule() async {
   }
 }
 
-
 @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -278,7 +278,12 @@ Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
           );
         },
       ),
-      _menuItem(Icons.train, '저장한 대중교통 팁', onTap: () { /* TODO */ }),
+      // ✅ 저장한 대중교통 팁 메뉴 연결 (오류 수정)
+      _menuItem(Icons.train, '저장한 대중교통 팁', onTap: () { 
+          // ⚠️ SavedTipsScreen이 import 되어 있어야 합니다.
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const SavedTipsScreen())) // ✅ const 키워드 유지
+              .then((_) => _refresh()); // 돌아올 때 프로필 상태 갱신
+      }),
       
       // ✅ '작성한 글' 이동 로직 구현
       _menuItem(Icons.rate_review, '작성한 글', onTap: () async { 
@@ -290,7 +295,7 @@ Widget _menuItem(IconData icon, String title, {VoidCallback? onTap}) {
           Navigator.push(
               context,
               MaterialPageRoute(
-                  // ✅ filterUserId에 현재 사용자 ID를 전달
+                  // filterUserId에 현재 사용자 ID를 전달
                   builder: (_) => CommunityScreen(filterUserId: currentUserId), 
               ),
           ).then((result) => _refresh()); // 목록 갱신을 위해 돌아올 때 _refresh() 호출
