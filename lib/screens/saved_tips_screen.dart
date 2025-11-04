@@ -1,4 +1,4 @@
-// lib/screens/saved_tips_screen.dart (수정)
+// lib/screens/saved_tips_screen.dart (최종 수정)
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -79,6 +79,22 @@ class _SavedTipsScreenState extends State<SavedTipsScreen> {
     }
   }
 
+  // ✅ 교통수단 타입에 따른 아이콘 반환 함수 (추가)
+  IconData _getTransportIcon(String? type) {
+    switch (type?.toLowerCase()) {
+      case '택시':
+        return Icons.local_taxi;
+      case '버스':
+        return Icons.directions_bus;
+      case '지하철':
+        return Icons.subway;
+      case '기차':
+        return Icons.train;
+      default:
+        return Icons.help_outline; // 알 수 없는 경우 기본 아이콘
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,8 +111,8 @@ class _SavedTipsScreenState extends State<SavedTipsScreen> {
                       itemBuilder: (context, index) {
                         final tip = _savedTips[index];
                         
-                        // ⭐️ 이미지 URL 추출 및 경로 설정 (서버 응답의 media_url 필드를 사용)
-                        final String? imageUrl = tip['media_url']; // ✅ 서버에서 가져온 필드
+                        // ⭐️ 이미지 URL 추출: 서버에서 받은 media_url 필드를 사용
+                        final String? imageUrl = tip['media_url']; 
                         final String fullImageUrl = (imageUrl != null && imageUrl.isNotEmpty) ? '$baseUrl/$imageUrl' : '';
 
                         // ✅ 이미지 표시 및 왼쪽 정렬
@@ -107,23 +123,24 @@ class _SavedTipsScreenState extends State<SavedTipsScreen> {
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8.0),
                                   child: Image.network(
-                                    fullImageUrl, // ⭐️ 이미지 URL 사용
+                                    fullImageUrl, 
                                     fit: BoxFit.cover,
-                                    // 로드 실패 시 아이콘
+                                    // 로드 실패 시 교통수단 아이콘 사용
                                     errorBuilder: (context, error, stackTrace) =>
-                                        const Icon(Icons.image_not_supported, size: 30, color: Colors.grey),
+                                        Icon(_getTransportIcon(tip['transport_type']), size: 30, color: Colors.grey),
                                   ),
                                 ),
                               )
-                            : const Icon(Icons.train, color: Colors.grey); // 이미지가 없을 때 기본 아이콘
+                            : Icon(_getTransportIcon(tip['transport_type']), color: Colors.grey); // 이미지가 없을 때 교통수단 아이콘
                         
                         return Card(
                           elevation: 1,
                           margin: const EdgeInsets.only(bottom: 12),
                           child: ListTile(
-                            leading: leadingWidget, // ✅ 이미지 또는 아이콘 표시
+                            leading: leadingWidget, // ✅ 이미지 또는 교통수단 아이콘 표시
                             title: Text(tip['title'] ?? '제목 없음', style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: Text(
+                              // tip['id']는 서버에서 tip_id로 받은 값입니다.
                               '${tip['country'] ?? ''} - ${tip['transport_type'] ?? ''} ${_formatSavedDate(tip['saved_at'])}',
                             ),
                             onTap: () {

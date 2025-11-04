@@ -1,4 +1,4 @@
-// lib/screens/transport_tip_detail_screen.dart (수정)
+// lib/screens/transport_tip_detail_screen.dart (최종 수정: 오버플로우 해결 및 저장 상태 로직 복구)
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -23,23 +23,23 @@ class TransportTipDetailScreen extends StatefulWidget {
 class _TransportTipDetailScreenState extends State<TransportTipDetailScreen> {
   // 팁이 이미 저장되었는지 확인하는 상태
   bool _isSaved = false; 
-  bool _loadingSaveStatus = true;
+  // ⚠️ _loadingSaveStatus를 true로 복구하여, 화면 진입 시 서버에서 상태를 다시 불러오도록 함 (저장 상태 유지 문제 해결의 핵심)
+  bool _loadingSaveStatus = true; 
   
   // tip 데이터에서 필요한 정보 추출
-  int get _tipId => (widget.tip['id'] ?? 0) as int; // 팁 ID
+  int get _tipId => (widget.tip['id'] ?? 0) as int; 
   String get _tipContent => (widget.tip['content'] ?? '').toString();
-  String get _transportType => (widget.tip['transport_type'] ?? '').toString();
-  String get _title => (widget.tip['title'] ?? '교통 팁').toString(); // 제목 추출
+  String get _title => (widget.tip['title'] ?? '교통 팁').toString(); 
+  String get _details => (widget.tip['details'] ?? '').toString(); 
 
-  // mediaList 추출 (tip['media']가 List인지 확인)
-  // ⚠️ 서버에서 이 미디어 리스트를 tip 객체에 포함하여 보내줘야 합니다.
+  // mediaList 추출
   List<dynamic> get _mediaList => (widget.tip['media'] is List) ? widget.tip['media'] : [];
 
 
   @override
   void initState() {
     super.initState();
-    _checkSavedStatus(); // 1. 초기 저장 상태 확인
+    _checkSavedStatus(); // 1. 초기 저장 상태 확인 (서버에서 가져옴)
   }
 
   void _showSnack(String msg) {
@@ -48,7 +48,7 @@ class _TransportTipDetailScreenState extends State<TransportTipDetailScreen> {
     }
   }
 
-  // ✅ 팁의 저장 상태를 서버에서 확인하는 함수 (기존 유지)
+  // ✅ 팁의 저장 상태를 서버에서 확인하는 함수 (복구/유지)
   Future<void> _checkSavedStatus() async {
     final token = await AuthStorage.getToken();
     if (token == null || _tipId == 0) {
@@ -79,8 +79,8 @@ class _TransportTipDetailScreenState extends State<TransportTipDetailScreen> {
     }
   }
 
-  // ✅ 저장/취소 토글 함수 (기존 유지)
-  Future<void> _toggleSave() async {
+  // ✅ 저장/취소 토글 함수 (복구/유지)
+  Future<void> _toggleSave() async { 
     final token = await AuthStorage.getToken();
     if (token == null) {
       _showSnack('로그인이 필요합니다.');
@@ -121,10 +121,13 @@ class _TransportTipDetailScreenState extends State<TransportTipDetailScreen> {
       throw Exception('Could not launch $url');
     }
   }
-  
-  // ✅ 다중 미디어 목록을 순회하며 위젯 리스트를 빌드하는 함수 (수정)
+
+  // ✅ 다중 미디어 목록을 순회하며 위젯 리스트를 빌드하는 함수 (이미지 표시)
   List<Widget> _buildMediaList(BuildContext context, List<dynamic> mediaList) {
     if (mediaList.isEmpty) return [];
+    
+    // 현재 패딩 24.0 * 2 = 48.0 이므로, 양쪽 패딩을 제외한 너비를 계산합니다.
+    final double maxMediaWidth = MediaQuery.of(context).size.width - 48.0; 
 
     return mediaList.expand<Widget>((media) {
       final mediaUrl = media['media_url'] as String? ?? '';
@@ -137,24 +140,27 @@ class _TransportTipDetailScreenState extends State<TransportTipDetailScreen> {
 
       // 이미지 처리 로직
       if (mediaType == 'image') {
-        // ⭐️ 이미지 URL이 완전한 형태가 아닐 경우 baseUrl과 조합
         final imgUrl = mediaUrl.startsWith('http') ? mediaUrl : '$baseUrl/$mediaUrl';
         
         currentMediaWidget = ClipRRect(
           borderRadius: BorderRadius.circular(8.0),
           child: Image.network(
             imgUrl,
-            // ⭐️ 이미지 크기를 화면 너비에 맞게 조정 (왼쪽 정렬 효과)
-            width: MediaQuery.of(context).size.width - 48, 
+            width: maxMediaWidth, 
             fit: BoxFit.fitWidth, 
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
-              return const Center(child: CircularProgressIndicator());
+              return Container(
+                width: maxMediaWidth,
+                height: 150,
+                color: Colors.grey[100],
+                child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
             },
             errorBuilder: (context, error, stackTrace) => 
               Container( // 이미지 로드 실패 시 아이콘을 담을 컨테이너
-                width: MediaQuery.of(context).size.width - 48,
-                height: 150, // 임시 높이
+                width: maxMediaWidth,
+                height: 150, 
                 color: Colors.grey[200],
                 child: const Center(child: Icon(Icons.broken_image, size: 50, color: Colors.grey)),
               ),
@@ -163,7 +169,7 @@ class _TransportTipDetailScreenState extends State<TransportTipDetailScreen> {
       } 
       // 동영상 (video) 처리 로직: 외부 연결 (기존 유지)
       else if (mediaType == 'video') {
-        currentMediaWidget = InkWell(
+         currentMediaWidget = InkWell(
           onTap: () => _launchUrl(mediaUrl),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -270,15 +276,21 @@ class _TransportTipDetailScreenState extends State<TransportTipDetailScreen> {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start, // ⭐️ Row 정렬 시작점 지정
               children: [
-                // 1. 제목 표시
-                Text(
-                  _title,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                // 1. 제목 표시 (수정: Expanded로 감싸서 오버플로우 방지)
+                Expanded( // ⭐️ Expanded 추가
+                  child: Text(
+                    _title,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    maxLines: 2, // 제목 최대 2줄
+                    overflow: TextOverflow.ellipsis, // 넘치면 ...으로 표시
+                  ),
                 ),
-                // ✅ 저장 버튼 위젯
+                // 2. 저장 버튼 위젯 (오른쪽 상단 고정)
+                // IconButton 자체는 Row 내에서 자체 공간을 확보합니다.
                 if (_loadingSaveStatus)
-                  const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                  const SizedBox(width: 28, height: 28, child: Center(child: CircularProgressIndicator(strokeWidth: 2))) // 공간 확보
                 else
                   IconButton(
                     icon: Icon(
@@ -287,21 +299,23 @@ class _TransportTipDetailScreenState extends State<TransportTipDetailScreen> {
                       size: 28,
                     ),
                     onPressed: _toggleSave,
+                    padding: EdgeInsets.zero, 
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28), // 버튼 최소 크기 지정
                   ),
               ],
             ),
             const SizedBox(height: 20),
 
-            // 2. 본문 내용 (content) - 단일 Text에서 목록 위젯으로 대체
+            // 2. 본문 내용 (content)
             ..._buildContentList(_tipContent),
 
-            // 3. 미디어 위젯 목록 (동영상/이미지) - 왼쪽 정렬
+            // 3. 미디어 위젯 목록 (동영상/이미지) - 핵심 수정 부분
             if (_mediaList.isNotEmpty) const SizedBox(height: 20),
             ..._buildMediaList(context, _mediaList), 
 
             // 4. 상세 정보 (details)
             if (details.isNotEmpty) ...[
-              const SizedBox(height: 16), // 미디어와 상세 정보 텍스트 간의 간격
+              const SizedBox(height: 16), 
               Text(details, style: const TextStyle(fontSize: 15)),
             ],
 
